@@ -33,6 +33,24 @@ scene.skyAtmosphere.show = true;
 const fileInput = document.getElementById("fileInput");
 const videoElement = document.getElementById("videoElement");
 
+// HUD Elements
+const hudEls = {
+    lat: document.getElementById("val_lat"),
+    lon: document.getElementById("val_lon"),
+    alt: document.getElementById("val_alt"),
+    heading: document.getElementById("val_heading"),
+    pitch: document.getElementById("val_pitch"),
+    roll: document.getElementById("val_roll"),
+    fov: document.getElementById("val_fov"),
+};
+
+const fovToggle = document.getElementById("fovToggle");
+const useSensorAnglesToggle = document.getElementById("useSensorAngles");
+
+let packetCount = 0;
+let klvBuffer = [];
+let firstPts = null;      // PTS of the very first packet (microseconds)
+
 if (fileInput) {
     fileInput.addEventListener("change", function (event) {
         const file = event.target.files[0];
@@ -41,6 +59,11 @@ if (fileInput) {
         const fileURL = URL.createObjectURL(file);
 
         if (mpegts.getFeatureList().mseLivePlayback) {
+            // Reset state
+            klvBuffer = [];
+            packetCount = 0;
+            firstPts = null;
+
             if (window.player) {
                 window.player.pause();
                 window.player.unload();
@@ -72,10 +95,6 @@ if (fileInput) {
         }
     });
 }
-
-let packetCount = 0;
-let klvBuffer = [];
-let firstPts = null;      // PTS of the very first packet (microseconds)
 
 // Cleanup buffer when new file is loaded
 if (fileInput) {
@@ -130,18 +149,49 @@ scene.preRender.addEventListener(() => {
 });
 
 function updateCameraFromPacket(packet) {
-    const { lat, lon, alt, heading, pitch, roll, fovHtml } = packet;
+    const {
+        lat, lon, alt,
+        heading, pitch, roll,
+        fovHtml,
+        sensorRelAzimuth, sensorRelElevation, sensorRelRoll
+    } = packet;
+
+    // Update HUD
+    if (hudEls.lat) hudEls.lat.textContent = lat?.toFixed(6) ?? "N/A";
+    if (hudEls.lon) hudEls.lon.textContent = lon?.toFixed(6) ?? "N/A";
+    if (hudEls.alt) hudEls.alt.textContent = alt?.toFixed(1) ?? "N/A";
+    if (hudEls.heading) hudEls.heading.textContent = heading?.toFixed(2) ?? "N/A";
+    if (hudEls.pitch) hudEls.pitch.textContent = pitch?.toFixed(2) ?? "N/A";
+    if (hudEls.roll) hudEls.roll.textContent = roll?.toFixed(2) ?? "N/A";
+    if (hudEls.fov) hudEls.fov.textContent = fovHtml?.toFixed(2) ?? "N/A";
 
     if (lat !== undefined && lon !== undefined && alt !== undefined) {
         const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
         const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
 
-        let orientation = undefined;
+        let orientation = new Cesium.HeadingPitchRoll(0, 90, 0);
         if (heading !== undefined && pitch !== undefined && roll !== undefined) {
+
+            let finalHeading = heading;
+            let finalPitch = pitch;
+            let finalRoll = roll;
+
+            // Debug: Use Sensor Angles if requested and available
+            if (useSensorAnglesToggle && useSensorAnglesToggle.checked &&
+                sensorRelAzimuth !== undefined && sensorRelElevation !== undefined && sensorRelRoll !== undefined) {
+
+                // Simple addition for small angles / "Look" direction
+                // Note: This is an approximation. 
+                // Heading is 0..360.
+                finalHeading = (heading + sensorRelAzimuth) % 360;
+                finalPitch = pitch + sensorRelElevation;
+                finalRoll = roll + sensorRelRoll;
+            }
+
             orientation = new Cesium.HeadingPitchRoll(
-                toRadians(heading),
-                toRadians(pitch),
-                toRadians(roll)
+                toRadians(finalHeading),
+                toRadians(finalPitch),
+                toRadians(finalRoll)
             );
         }
 
@@ -153,7 +203,10 @@ function updateCameraFromPacket(packet) {
         if (fovHtml !== undefined) {
             const fovRad = toRadians(fovHtml);
             if (fovRad > 0.001 && fovRad < Math.PI) {
-                viewer.camera.frustum.fov = fovRad;
+                // Check FOV Toggle
+                if (!fovToggle || fovToggle.checked) {
+                    viewer.camera.frustum.fov = fovRad;
+                }
             }
         }
     }
@@ -197,6 +250,10 @@ function handleMetadata(eventType, data) {
             const roll = findValue("Platform Roll Angle");
             const fovHtml = findValue("Sensor Horizontal Field of View");
 
+            const sensorRelAzimuth = findValue("Sensor Relative Azimuth Angle");
+            const sensorRelElevation = findValue("Sensor Relative Elevation Angle");
+            const sensorRelRoll = findValue("Sensor Relative Roll Angle");
+
             if (shouldLog) {
                 // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
             }
@@ -215,7 +272,10 @@ function handleMetadata(eventType, data) {
                     heading,
                     pitch,
                     roll,
-                    fovHtml
+                    fovHtml,
+                    sensorRelAzimuth,
+                    sensorRelElevation,
+                    sensorRelRoll
                 });
             }
         }

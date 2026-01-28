@@ -120,3 +120,6 @@ dist
 dist
 dist-ssr
 *.local
+
+# Mpeg-ts-player
+mpeg-ts-player/

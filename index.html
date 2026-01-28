@@ -20,9 +20,28 @@
 </head>
 
 <div id="uiContainer"
-  style="position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: white;">
+  style="position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: white; display: flex; flex-direction: column; gap: 10px;">
   <input type="file" id="fileInput" accept=".ts" />
-  <video id="videoElement" controls style="display: none; width: 300px; margin-top: 10px;"></video>
+  <video id="videoElement" controls style="display: none; width: 300px;"></video>
+
+  <div id="controls" style="background: rgba(0,0,0,0.3); padding: 5px; border-radius: 3px;">
+    <label style="display: block;">
+      <input type="checkbox" id="fovToggle" checked> Slave FOV
+    </label>
+    <label style="display: block;">
+      <input type="checkbox" id="useSensorAngles" /> Use Sensor Angles
+    </label>
+  </div>
+
+  <div id="hudContent" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px;">
+    <div>Lat: <span id="val_lat">N/A</span></div>
+    <div>Lon: <span id="val_lon">N/A</span></div>
+    <div>Alt: <span id="val_alt">N/A</span></div>
+    <div>Heading: <span id="val_heading">N/A</span></div>
+    <div>Pitch: <span id="val_pitch">N/A</span></div>
+    <div>Roll: <span id="val_roll">N/A</span></div>
+    <div>FOV: <span id="val_fov">N/A</span></div>
+  </div>
 </div>
 <div id="cesiumContainer"></div>
 <script src="/misb-browser.js"></script>
