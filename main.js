@@ -73,7 +73,14 @@ if (fileInput) {
     });
 }
 
+let lastLogTime = 0;
+let packetCount = 0;
+
 function handleMetadata(eventType, data) {
+    packetCount++;
+    // Log every 60 packets (approx 1 sec at 60Hz) or if it's the first few
+    const shouldLog = packetCount < 10 || packetCount % 60 === 0;
+
     try {
         let validData = data;
         if (data.data && (data.data instanceof Uint8Array || data.data instanceof ArrayBuffer)) {
@@ -86,9 +93,8 @@ function handleMetadata(eventType, data) {
 
         const buf = Buffer.from(validData);
 
-        // Assume MisbLibrary is available globally from the script tag
         if (typeof MisbLibrary === "undefined") {
-            console.warn("MisbLibrary not loaded");
+            if (shouldLog) console.warn("MisbLibrary not loaded");
             return;
         }
 
@@ -103,29 +109,26 @@ function handleMetadata(eventType, data) {
             const lon = findValue("Sensor Longitude");
             const alt = findValue("Sensor True Altitude");
 
-            const heading = findValue("Platform Heading Angle"); // or Sensor Relative Azimuth?
+            const heading = findValue("Platform Heading Angle");
             const pitch = findValue("Platform Pitch Angle");
             const roll = findValue("Platform Roll Angle");
             const fovHtml = findValue("Sensor Horizontal Field of View");
+
+            if (shouldLog) {
+                console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
+            }
 
             if (lat !== undefined && lon !== undefined && alt !== undefined) {
                 // Update Camera Position
                 const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
 
-                // Orientation
-                // Note: Cesium HPR is (Heading, Pitch, Roll) in radians.
-                // MISB is usually degrees, need to check MisbLibrary output unit.
-                // MisbLibrary usually returns numbers, check if they are converted to degrees.
-                // Assuming degrees for now, convert to radians.
-                // Actually MisbLibrary often returns decoded values in their defined units (often degrees).
-
                 const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
 
-                // Basic camera set (looking down if no orientation)
-                // If we have orientation:
-
+                // Orientation
                 let orientation = undefined;
                 if (heading !== undefined && pitch !== undefined && roll !== undefined) {
+                    // Cesium HPR: Heading (North=0, CW), Pitch (Horizon=0, Down=-), Roll (RightDown=+)
+                    // Ensure units are correct.
                     orientation = new Cesium.HeadingPitchRoll(
                         toRadians(heading),
                         toRadians(pitch),
@@ -133,19 +136,25 @@ function handleMetadata(eventType, data) {
                     );
                 }
 
-                // We use setView or move camera? setView for hard sync.
                 viewer.camera.setView({
                     destination: position,
                     orientation: orientation
                 });
 
                 if (fovHtml !== undefined) {
-                    viewer.camera.frustum.fov = toRadians(fovHtml);
+                    // Apply FOV if reasonable (prevent extreme zooms if data is weird, though 1 deg is valid for sensors)
+                    const fovRad = toRadians(fovHtml);
+                    if (fovRad > 0.001 && fovRad < Math.PI) {
+                        viewer.camera.frustum.fov = fovRad;
+                    }
                 }
+            } else {
+                if (shouldLog) console.warn(`[${eventType}] Missing required position data in packet #${packetCount}`);
             }
+        } else {
+            if (shouldLog) console.warn(`[${eventType}] Failed to parse KLV or empty result in packet #${packetCount}`);
         }
     } catch (error) {
         console.error(`[${eventType}] Error parsing KLV:`, error);
     }
 }
-
