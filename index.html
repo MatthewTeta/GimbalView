@@ -19,9 +19,14 @@
   </style>
 </head>
 
-<body>
-  <div id="cesiumContainer"></div>
-  <script type="module" src="./main.js"></script>
+<div id="uiContainer"
+  style="position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: white;">
+  <input type="file" id="fileInput" accept=".ts" />
+  <video id="videoElement" controls style="display: none; width: 300px; margin-top: 10px;"></video>
+</div>
+<div id="cesiumContainer"></div>
+<script src="/misb-browser.js"></script>
+<script type="module" src="./main.js"></script>
 </body>
 
 </html>
