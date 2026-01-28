@@ -53,8 +53,10 @@ const hudEls = {
 const fovToggle = document.getElementById("fovToggle");
 const useSensorAnglesToggle = document.getElementById("useSensorAngles");
 const combineAnglesToggle = document.getElementById("combineAnglesToggle");
+const useFrameCenterToggle = document.getElementById("useFrameCenter");
 const dataDelayInput = document.getElementById("dataDelay");
 const avgWindowInput = document.getElementById("avgWindow");
+const manualFovInput = document.getElementById("manualFov");
 
 let packetCount = 0;
 let klvBuffer = [];
@@ -177,6 +179,7 @@ function computeAveragePacket(packets) {
     let sumLat = 0, sumLon = 0, sumAlt = 0;
     let sumPitch = 0, sumRoll = 0, sumFov = 0;
     let sumSensorAz = 0, sumSensorEl = 0, sumSensorRoll = 0;
+    let sumCenterLat = 0, sumCenterLon = 0, sumCenterAlt = 0;
 
     // // Circular mean for Heading
     // let sumSinHeading = 0;
@@ -203,6 +206,10 @@ function computeAveragePacket(packets) {
         sumSensorAz += (p.sensorRelAzimuth || 0);
         sumSensorEl += (p.sensorRelElevation || 0);
         sumSensorRoll += (p.sensorRelRoll || 0);
+
+        sumCenterLat += (p.frameCenterLat || 0);
+        sumCenterLon += (p.frameCenterLon || 0);
+        sumCenterAlt += (p.frameCenterAlt || 0);
     }
 
     // const avgHeadingRad = Math.atan2(sumSinHeading / count, sumCosHeading / count);
@@ -219,7 +226,10 @@ function computeAveragePacket(packets) {
         fovHtml: sumFov / count,
         sensorRelAzimuth: sumSensorAz / count,
         sensorRelElevation: sumSensorEl / count,
-        sensorRelRoll: sumSensorRoll / count
+        sensorRelRoll: sumSensorRoll / count,
+        frameCenterLat: sumCenterLat / count,
+        frameCenterLon: sumCenterLon / count,
+        frameCenterAlt: sumCenterAlt / count
     };
 }
 
@@ -228,74 +238,99 @@ function updateCameraFromPacket(packet) {
         lat, lon, alt,
         heading, pitch, roll,
         fovHtml,
-        sensorRelAzimuth, sensorRelElevation, sensorRelRoll
+        sensorRelAzimuth, sensorRelElevation, sensorRelRoll,
+        frameCenterLat, frameCenterLon, frameCenterAlt
     } = packet;
 
-    if (lat !== undefined && lon !== undefined && alt !== undefined) {
-        const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
-        const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
+    if (lat === undefined || lon === undefined || alt === undefined) return;
 
-        let orientation = new Cesium.HeadingPitchRoll(0, 90, 0);
-        if (heading !== undefined && pitch !== undefined && roll !== undefined) {
+    const platformPos = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+    const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
 
-            let finalHeading = 0;
-            let finalPitch = 0;
-            let finalRoll = 0;
-            if (combineAnglesToggle && combineAnglesToggle.checked) {
-                finalHeading += heading;
-                finalPitch += pitch;
-                finalRoll += roll;
-            }
+    // 1. Priority: Frame Center (LookAt)
+    if (useFrameCenterToggle?.checked && frameCenterLat !== undefined && frameCenterLon !== undefined) {
+        const centerPos = Cesium.Cartesian3.fromDegrees(frameCenterLon, frameCenterLat, frameCenterAlt || 0);
 
-            // Debug: Use Sensor Angles if requested and available
-            if (useSensorAnglesToggle && useSensorAnglesToggle.checked &&
-                sensorRelAzimuth !== undefined && sensorRelElevation !== undefined && sensorRelRoll !== undefined) {
+        // viewer.camera.lookAt takes the offset in the local East-North-Up reference frame.
+        // We must transform the platform position (ECEF) into the local frame of the center position.
 
-                // Simple addition for small angles / "Look" direction
-                // Note: This is an approximation. 
-                // Heading is 0..360.
-                finalHeading += sensorRelAzimuth;
-                finalPitch += sensorRelElevation;
-                finalRoll += sensorRelRoll;
-            }
+        const transform = Cesium.Transforms.eastNorthUpToFixedFrame(centerPos);
+        const invTransform = Cesium.Matrix4.inverse(transform, new Cesium.Matrix4());
+        const offsetENU = Cesium.Matrix4.multiplyByPoint(invTransform, platformPos, new Cesium.Cartesian3());
 
-            finalHeading = (finalHeading + 360) % 360;
-
-            // Update HUD
-            if (hudEls.fov) hudEls.fov.textContent = fovHtml?.toFixed(2) ?? "N/A";
-            if (hudEls.platformLat) hudEls.platformLat.textContent = lat?.toFixed(6) ?? "N/A";
-            if (hudEls.platformLon) hudEls.platformLon.textContent = lon?.toFixed(6) ?? "N/A";
-            if (hudEls.platformAlt) hudEls.platformAlt.textContent = alt?.toFixed(1) ?? "N/A";
-            if (hudEls.platformHeading) hudEls.platformHeading.textContent = heading?.toFixed(2) ?? "N/A";
-            if (hudEls.platformPitch) hudEls.platformPitch.textContent = pitch?.toFixed(2) ?? "N/A";
-            if (hudEls.platformRoll) hudEls.platformRoll.textContent = roll?.toFixed(2) ?? "N/A";
-            if (hudEls.sensorAzimuth) hudEls.sensorAzimuth.textContent = sensorRelAzimuth?.toFixed(2) ?? "N/A";
-            if (hudEls.sensorElevation) hudEls.sensorElevation.textContent = sensorRelElevation?.toFixed(2) ?? "N/A";
-            if (hudEls.sensorRoll) hudEls.sensorRoll.textContent = sensorRelRoll?.toFixed(2) ?? "N/A";
-            if (hudEls.finalHeading) hudEls.finalHeading.textContent = finalHeading?.toFixed(2) ?? "N/A";
-            if (hudEls.finalPitch) hudEls.finalPitch.textContent = finalPitch?.toFixed(2) ?? "N/A";
-            if (hudEls.finalRoll) hudEls.finalRoll.textContent = finalRoll?.toFixed(2) ?? "N/A";
-
-            orientation = new Cesium.HeadingPitchRoll(
-                toRadians(finalHeading),
-                toRadians(finalPitch),
-                toRadians(finalRoll)
-            );
+        viewer.camera.lookAt(centerPos, offsetENU);
+    } else {
+        // Reset lookAt transform if it was active
+        if (viewer.camera.lookAtTransformSupported && viewer.camera.transform !== Cesium.Matrix4.IDENTITY) {
+            viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
         }
 
+        let h = 0, p = -90, r = 0;
+
+        // 2. Priority: Combined Platform + Sensor
+        if (combineAnglesToggle?.checked) {
+            h = (heading || 0) + (sensorRelAzimuth || 0);
+            p = (pitch || 0) + (sensorRelElevation || 0);
+            r = (roll || 0) + (sensorRelRoll || 0);
+        }
+        // 3. Priority: Sensor Only
+        else if (useSensorAnglesToggle?.checked) {
+            h = sensorRelAzimuth || 0;
+            p = sensorRelElevation || 0;
+            r = sensorRelRoll || 0;
+        }
+        // 4. Fallback: Look straight down (Nadir)
+        else {
+            h = heading || 0;
+            p = pitch || 0;
+            r = roll || 0;
+        }
+
+        h = (h + 360) % 360;
+
+        const orientation = new Cesium.HeadingPitchRoll(
+            toRadians(h),
+            toRadians(p),
+            toRadians(r)
+        );
+
+        // Update HUD for angles
+        if (hudEls.finalHeading) hudEls.finalHeading.textContent = h?.toFixed(2) ?? "N/A";
+        if (hudEls.finalPitch) hudEls.finalPitch.textContent = p?.toFixed(2) ?? "N/A";
+        if (hudEls.finalRoll) hudEls.finalRoll.textContent = r?.toFixed(2) ?? "N/A";
+
         viewer.camera.setView({
-            destination: position,
+            destination: platformPos,
             orientation: orientation
         });
+    }
 
-        if (fovHtml !== undefined) {
-            const fovRad = toRadians(fovHtml);
-            if (fovRad > 0.001 && fovRad < Math.PI) {
-                // Check FOV Toggle
-                if (!fovToggle || fovToggle.checked) {
-                    viewer.camera.frustum.fov = fovRad;
-                }
-            }
+    // COMMON HUD Updates
+    if (hudEls.platformLat) hudEls.platformLat.textContent = lat?.toFixed(6) ?? "N/A";
+    if (hudEls.platformLon) hudEls.platformLon.textContent = lon?.toFixed(6) ?? "N/A";
+    if (hudEls.platformAlt) hudEls.platformAlt.textContent = alt?.toFixed(1) ?? "N/A";
+    if (hudEls.platformHeading) hudEls.platformHeading.textContent = heading?.toFixed(2) ?? "N/A";
+    if (hudEls.platformPitch) hudEls.platformPitch.textContent = pitch?.toFixed(2) ?? "N/A";
+    if (hudEls.platformRoll) hudEls.platformRoll.textContent = roll?.toFixed(2) ?? "N/A";
+    if (hudEls.sensorAzimuth) hudEls.sensorAzimuth.textContent = sensorRelAzimuth?.toFixed(2) ?? "N/A";
+    if (hudEls.sensorElevation) hudEls.sensorElevation.textContent = sensorRelElevation?.toFixed(2) ?? "N/A";
+    if (hudEls.sensorRoll) hudEls.sensorRoll.textContent = sensorRelRoll?.toFixed(2) ?? "N/A";
+
+    // FOV Handling
+    let fovToUse = fovHtml;
+
+    // If Slave FOV is OFF, use Manual Slider
+    if (!fovToggle || !fovToggle.checked) {
+        const manFov = parseInt(manualFovInput ? manualFovInput.value : 45) || 45;
+        fovToUse = manFov; // Use raw degrees here, converted below
+    }
+
+    if (hudEls.fov) hudEls.fov.textContent = fovToUse?.toFixed(2) ?? "N/A";
+
+    if (fovToUse !== undefined) {
+        const fovRad = toRadians(fovToUse);
+        if (fovRad > 0.001 && fovRad < Math.PI) {
+            viewer.camera.frustum.fov = fovRad;
         }
     }
 }
@@ -342,6 +377,10 @@ function handleMetadata(eventType, data) {
             const sensorRelElevation = findValue("Sensor Relative Elevation Angle");
             const sensorRelRoll = findValue("Sensor Relative Roll Angle");
 
+            const frameCenterLat = findValue("Frame Center Latitude");
+            const frameCenterLon = findValue("Frame Center Longitude");
+            const frameCenterAlt = findValue("Frame Center Elevation") || 0; // Default to 0 if missing.
+
             if (shouldLog) {
                 // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
             }
@@ -363,7 +402,10 @@ function handleMetadata(eventType, data) {
                     fovHtml,
                     sensorRelAzimuth,
                     sensorRelElevation,
-                    sensorRelRoll
+                    sensorRelRoll,
+                    frameCenterLat,
+                    frameCenterLon,
+                    frameCenterAlt
                 });
             }
         }

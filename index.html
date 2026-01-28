@@ -34,6 +34,9 @@
     <label style="display: block;">
       <input type="checkbox" id="combineAnglesToggle" /> Combine Angles
     </label>
+    <label style="display: block;">
+      <input type="checkbox" id="useFrameCenter" /> Use Frame Center
+    </label>
     <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
       <label style="display: block;" title="Delays KLV processing relative to video to account for display latency.">
         Delay: <span id="val_delay_disp">0</span>ms
@@ -43,6 +46,11 @@
       <label style="display: block;" title="Number of samples to average for smoother motion.">
         Avg Window:
         <input type="number" id="avgWindow" min="1" max="60" value="1" style="width: 40px; color: black;" />
+      </label>
+      <label style="display: block;" title="Manual FOV when Slave FOV is off.">
+        Manual FOV: <span id="val_man_fov">45</span>&deg;
+        <input type="range" id="manualFov" min="1" max="179" step="1" value="45" style="width: 100%;"
+          oninput="document.getElementById('val_man_fov').textContent=this.value" />
       </label>
     </div>
   </div>
