@@ -31,16 +31,36 @@
     <label style="display: block;">
       <input type="checkbox" id="useSensorAngles" /> Use Sensor Angles
     </label>
+    <label style="display: block;">
+      <input type="checkbox" id="combineAnglesToggle" /> Combine Angles
+    </label>
+    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
+      <label style="display: block;" title="Delays KLV processing relative to video to account for display latency.">
+        Delay: <span id="val_delay_disp">0</span>ms
+        <input type="range" id="dataDelay" min="0" max="1000" step="10" value="0" style="width: 100%;"
+          oninput="document.getElementById('val_delay_disp').textContent=this.value" />
+      </label>
+      <label style="display: block;" title="Number of samples to average for smoother motion.">
+        Avg Window:
+        <input type="number" id="avgWindow" min="1" max="60" value="1" style="width: 40px; color: black;" />
+      </label>
+    </div>
   </div>
 
   <div id="hudContent" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px;">
-    <div>Lat: <span id="val_lat">N/A</span></div>
-    <div>Lon: <span id="val_lon">N/A</span></div>
-    <div>Alt: <span id="val_alt">N/A</span></div>
-    <div>Heading: <span id="val_heading">N/A</span></div>
-    <div>Pitch: <span id="val_pitch">N/A</span></div>
-    <div>Roll: <span id="val_roll">N/A</span></div>
     <div>FOV: <span id="val_fov">N/A</span></div>
+    <div>Platform Lat: <span id="val_platform_lat">N/A</span></div>
+    <div>Platform Lon: <span id="val_platform_lon">N/A</span></div>
+    <div>Platform Alt: <span id="val_platform_alt">N/A</span></div>
+    <div>Platform Heading: <span id="val_platform_heading">N/A</span></div>
+    <div>Platform Pitch: <span id="val_platform_pitch">N/A</span></div>
+    <div>Platform Roll: <span id="val_platform_roll">N/A</span></div>
+    <div>Sensor Azimuth: <span id="val_sensor_azimuth">N/A</span></div>
+    <div>Sensor Elevation: <span id="val_sensor_elevation">N/A</span></div>
+    <div>Sensor Roll: <span id="val_sensor_roll">N/A</span></div>
+    <div>Final Heading: <span id="val_final_heading">N/A</span></div>
+    <div>Final Pitch: <span id="val_final_pitch">N/A</span></div>
+    <div>Final Roll: <span id="val_final_roll">N/A</span></div>
   </div>
 </div>
 <div id="cesiumContainer"></div>
