@@ -73,12 +73,94 @@ if (fileInput) {
     });
 }
 
-let lastLogTime = 0;
 let packetCount = 0;
+let klvBuffer = [];
+let firstPts = null;      // PTS of the very first packet (microseconds)
+
+// Cleanup buffer when new file is loaded
+if (fileInput) {
+    fileInput.addEventListener("click", () => {
+        klvBuffer = [];
+        packetCount = 0;
+        firstPts = null;
+    });
+}
+
+// Subscribe to render loop for valid sync
+scene.preRender.addEventListener(() => {
+    if (!videoElement || videoElement.paused || videoElement.ended || klvBuffer.length === 0) return;
+
+    // Logic: 
+    // We assume the first KLV packet we received corresponds to the beginning of the stream (roughly).
+    // Or strictly rely on PTS differences.
+    // If we assume the video starts at 0s and corresponds to firstPts:
+    // currentPts = firstPts + (videoElement.currentTime * 1,000,000)
+
+    if (firstPts === null) return;
+
+    const currentVideoTime = videoElement.currentTime;
+    const targetPts = firstPts + (currentVideoTime * 1000000); // Convert seconds to microseconds
+
+    // Find the packet with PTS closest to targetPts
+    // Since buffer is ordered (received in order), we can search efficiently or just iterate if buffer isn't huge.
+
+    let bestPacket = null;
+    let minDiff = Infinity;
+
+    // Simple linear scan for now. 
+    // Optimization idea: keep an index and only search forward?
+
+    for (const packet of klvBuffer) {
+        // Optimization: if packet.pts is significantly smaller than targetPts, ignore?
+        // But the buffer might grow large. Ideally we slice the buffer.
+
+        const diff = Math.abs(packet.pts - targetPts);
+        if (diff < minDiff) {
+            minDiff = diff;
+            bestPacket = packet;
+        } else {
+            // If difference starts growing, we passed the sweet spot (assuming sorted buffer)
+            // But KLV might be slightly out of order? unlikely for MP4/TS
+        }
+    }
+
+    if (bestPacket) {
+        updateCameraFromPacket(bestPacket);
+    }
+});
+
+function updateCameraFromPacket(packet) {
+    const { lat, lon, alt, heading, pitch, roll, fovHtml } = packet;
+
+    if (lat !== undefined && lon !== undefined && alt !== undefined) {
+        const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+        const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
+
+        let orientation = undefined;
+        if (heading !== undefined && pitch !== undefined && roll !== undefined) {
+            orientation = new Cesium.HeadingPitchRoll(
+                toRadians(heading),
+                toRadians(pitch),
+                toRadians(roll)
+            );
+        }
+
+        viewer.camera.setView({
+            destination: position,
+            orientation: orientation
+        });
+
+        if (fovHtml !== undefined) {
+            const fovRad = toRadians(fovHtml);
+            if (fovRad > 0.001 && fovRad < Math.PI) {
+                viewer.camera.frustum.fov = fovRad;
+            }
+        }
+    }
+}
 
 function handleMetadata(eventType, data) {
     packetCount++;
-    // Log every 60 packets (approx 1 sec at 60Hz) or if it's the first few
     const shouldLog = packetCount < 10 || packetCount % 60 === 0;
 
     try {
@@ -105,6 +187,7 @@ function handleMetadata(eventType, data) {
                 return item ? item.value : undefined;
             };
 
+            const pts = findValue("Precision Time Stamp");
             const lat = findValue("Sensor Latitude");
             const lon = findValue("Sensor Longitude");
             const alt = findValue("Sensor True Altitude");
@@ -115,44 +198,26 @@ function handleMetadata(eventType, data) {
             const fovHtml = findValue("Sensor Horizontal Field of View");
 
             if (shouldLog) {
-                console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
+                // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
             }
 
-            if (lat !== undefined && lon !== undefined && alt !== undefined) {
-                // Update Camera Position
-                const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
-
-                const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
-
-                // Orientation
-                let orientation = undefined;
-                if (heading !== undefined && pitch !== undefined && roll !== undefined) {
-                    // Cesium HPR: Heading (North=0, CW), Pitch (Horizon=0, Down=-), Roll (RightDown=+)
-                    // Ensure units are correct.
-                    orientation = new Cesium.HeadingPitchRoll(
-                        toRadians(heading),
-                        toRadians(pitch),
-                        toRadians(roll)
-                    );
+            if (pts !== undefined) {
+                if (firstPts === null) {
+                    firstPts = pts;
+                    console.log("First PTS established:", firstPts);
                 }
 
-                viewer.camera.setView({
-                    destination: position,
-                    orientation: orientation
+                klvBuffer.push({
+                    pts,
+                    lat,
+                    lon,
+                    alt,
+                    heading,
+                    pitch,
+                    roll,
+                    fovHtml
                 });
-
-                if (fovHtml !== undefined) {
-                    // Apply FOV if reasonable (prevent extreme zooms if data is weird, though 1 deg is valid for sensors)
-                    const fovRad = toRadians(fovHtml);
-                    if (fovRad > 0.001 && fovRad < Math.PI) {
-                        viewer.camera.frustum.fov = fovRad;
-                    }
-                }
-            } else {
-                if (shouldLog) console.warn(`[${eventType}] Missing required position data in packet #${packetCount}`);
             }
-        } else {
-            if (shouldLog) console.warn(`[${eventType}] Failed to parse KLV or empty result in packet #${packetCount}`);
         }
     } catch (error) {
         console.error(`[${eventType}] Error parsing KLV:`, error);
