@@ -22,7 +22,6 @@
 <div id="uiContainer"
   style="position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: white; display: flex; flex-direction: column; gap: 10px;">
   <input type="file" id="fileInput" accept=".ts" />
-  <video id="videoElement" controls style="display: none; width: 300px;"></video>
 
   <div id="controls" style="background: rgba(0,0,0,0.3); padding: 5px; border-radius: 3px;">
     <label style="display: block;">
@@ -40,7 +39,7 @@
     <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
       <label style="display: block;" title="Delays KLV processing relative to video to account for display latency.">
         Delay: <span id="val_delay_disp">0</span>ms
-        <input type="range" id="dataDelay" min="0" max="1000" step="10" value="0" style="width: 100%;"
+        <input type="range" id="dataDelay" min="-1000" max="1000" step="10" value="0" style="width: 100%;"
           oninput="document.getElementById('val_delay_disp').textContent=this.value" />
       </label>
       <label style="display: block;" title="Number of samples to average for smoother motion.">
@@ -51,6 +50,18 @@
         Manual FOV: <span id="val_man_fov">45</span>&deg;
         <input type="range" id="manualFov" min="1" max="179" step="1" value="45" style="width: 100%;"
           oninput="document.getElementById('val_man_fov').textContent=this.value" />
+      </label>
+      <label style="display: block;" title="Video Opacity Overlay">
+        Video Opacity: <span id="val_opacity">0.5</span>
+        <input type="range" id="videoOpacity" min="0" max="1" step="0.1" value="0.5" style="width: 100%;"
+          oninput="document.getElementById('val_opacity').textContent=this.value" />
+      </label>
+      <button id="playPauseBtn" style="width: 100%; margin-top: 5px; cursor: pointer;">Play / Pause</button>
+      <label style="display: block; margin-top: 5px;"
+        title="Adjusts vertical offset (meters) to correcting for HAE/MSL/Terrain differences">
+        Alt Offset: <span id="val_alt_offset">0</span>m
+        <input type="range" id="altOffset" min="-500" max="500" step="1" value="0" style="width: 100%;"
+          oninput="document.getElementById('val_alt_offset').textContent=this.value" />
       </label>
     </div>
   </div>
@@ -70,6 +81,10 @@
     <div>Final Pitch: <span id="val_final_pitch">N/A</span></div>
     <div>Final Roll: <span id="val_final_roll">N/A</span></div>
   </div>
+</div>
+<div id="videoContainer"
+  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5;">
+  <video id="videoElement" style="width: 100%; height: 100%; object-fit: contain; opacity: 0.5;"></video>
 </div>
 <div id="cesiumContainer"></div>
 <script src="/misb-browser.js"></script>

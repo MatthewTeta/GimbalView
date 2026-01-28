@@ -57,6 +57,35 @@ const useFrameCenterToggle = document.getElementById("useFrameCenter");
 const dataDelayInput = document.getElementById("dataDelay");
 const avgWindowInput = document.getElementById("avgWindow");
 const manualFovInput = document.getElementById("manualFov");
+const videoOpacityInput = document.getElementById("videoOpacity");
+const playPauseBtn = document.getElementById("playPauseBtn");
+
+// Controls Logic
+if (videoOpacityInput) {
+    videoOpacityInput.addEventListener("input", (e) => {
+        const val = e.target.value;
+        if (videoElement) {
+            videoElement.style.opacity = val;
+        }
+        const label = document.getElementById("val_opacity");
+        if (label) label.textContent = val;
+    });
+}
+
+if (playPauseBtn) {
+    playPauseBtn.addEventListener("click", () => {
+        if (videoElement) {
+            if (videoElement.paused) {
+                videoElement.play();
+                playPauseBtn.textContent = "Pause";
+            } else {
+                videoElement.pause();
+                playPauseBtn.textContent = "Play";
+            }
+        }
+    });
+}
+
 
 let packetCount = 0;
 let klvBuffer = [];
@@ -91,9 +120,10 @@ if (fileInput) {
             window.player.attachMediaElement(videoElement);
             window.player.load();
             window.player.play();
+            if (playPauseBtn) playPauseBtn.textContent = "Pause";
 
-            // Show video element for debugging
-            videoElement.style.display = "block";
+            // Show video element for debugging - NO LONGER NEEDED (handled by CSS overlay)
+            // videoElement.style.display = "block";
 
             window.player.on(mpegts.Events.SYNCHRONOUS_KLV_METADATA_ARRIVED, (data) =>
                 handleMetadata("SYNC_KLV", data)
