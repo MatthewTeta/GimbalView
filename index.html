@@ -57,12 +57,31 @@
           oninput="document.getElementById('val_opacity').textContent=this.value" />
       </label>
       <button id="playPauseBtn" style="width: 100%; margin-top: 5px; cursor: pointer;">Play / Pause</button>
-      <label style="display: block; margin-top: 5px;"
-        title="Adjusts vertical offset (meters) to correcting for HAE/MSL/Terrain differences">
-        Alt Offset: <span id="val_alt_offset">0</span>m
-        <input type="range" id="altOffset" min="-500" max="500" step="1" value="0" style="width: 100%;"
-          oninput="document.getElementById('val_alt_offset').textContent=this.value" />
-      </label>
+
+      <!-- Calibration Controls -->
+      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
+        <div style="font-weight: bold; margin-bottom: 5px;">Calibration</div>
+        <label style="display: block;" title="Altitude Offset (m)">
+          Alt Offset: <span id="val_alt_offset">0</span>m
+          <input type="range" id="altOffset" min="-50" max="50" step="0.1" value="0" style="width: 100%;"
+            oninput="document.getElementById('val_alt_offset').textContent=this.value" />
+        </label>
+        <label style="display: block;" title="Sensor Azimuth Bias (deg)">
+          Az Bias: <span id="val_az_bias">0</span>&deg;
+          <input type="range" id="azBias" min="-3" max="3" step="0.01" value="0" style="width: 100%;"
+            oninput="document.getElementById('val_az_bias').textContent=this.value" />
+        </label>
+        <label style="display: block;" title="Sensor Elevation Bias (deg)">
+          El Bias: <span id="val_el_bias">0</span>&deg;
+          <input type="range" id="elBias" min="-3" max="3" step="0.01" value="0" style="width: 100%;"
+            oninput="document.getElementById('val_el_bias').textContent=this.value" />
+        </label>
+        <label style="display: block;" title="Sensor Roll Bias (deg)">
+          Roll Bias: <span id="val_roll_bias">0</span>&deg;
+          <input type="range" id="rollBias" min="-3" max="3" step="0.01" value="0" style="width: 100%;"
+            oninput="document.getElementById('val_roll_bias').textContent=this.value" />
+        </label>
+      </div>
     </div>
   </div>
 

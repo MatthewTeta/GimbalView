@@ -19,6 +19,7 @@
   "keywords": [],
   "dependencies": {
     "buffer": "^6.0.3",
+    "egm96-universal": "^1.1.1",
     "events": "^3.3.0",
     "mpegts.js": "^1.8.0"
   }

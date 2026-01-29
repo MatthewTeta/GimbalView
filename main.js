@@ -1,6 +1,7 @@
 import * as Cesium from "cesium";
 import mpegts from "mpegts.js";
 import { Buffer } from "buffer";
+import * as EGM96 from "egm96-universal";
 
 // Polyfill Buffer for misb.js
 window.Buffer = Buffer;
@@ -59,6 +60,10 @@ const avgWindowInput = document.getElementById("avgWindow");
 const manualFovInput = document.getElementById("manualFov");
 const videoOpacityInput = document.getElementById("videoOpacity");
 const playPauseBtn = document.getElementById("playPauseBtn");
+const altOffsetInput = document.getElementById("altOffset");
+const azBiasInput = document.getElementById("azBias");
+const elBiasInput = document.getElementById("elBias");
+const rollBiasInput = document.getElementById("rollBias");
 
 // Controls Logic
 if (videoOpacityInput) {
@@ -231,7 +236,7 @@ function computeAveragePacket(packets) {
 
         sumPitch += (p.pitch || 0);
         sumRoll += (p.roll || 0);
-        sumFov += (p.fovHtml || 0);
+        sumFov += (p.fov || 0);
 
         sumSensorAz += (p.sensorRelAzimuth || 0);
         sumSensorEl += (p.sensorRelElevation || 0);
@@ -253,7 +258,7 @@ function computeAveragePacket(packets) {
         heading: avgHeading,
         pitch: sumPitch / count,
         roll: sumRoll / count,
-        fovHtml: sumFov / count,
+        fov: sumFov / count,
         sensorRelAzimuth: sumSensorAz / count,
         sensorRelElevation: sumSensorEl / count,
         sensorRelRoll: sumSensorRoll / count,
@@ -263,32 +268,105 @@ function computeAveragePacket(packets) {
     };
 }
 
+let updateCount = 0;
 function updateCameraFromPacket(packet) {
+    updateCount++;
+    const shouldLog = updateCount % 60 === 0;
+
     const {
         lat, lon, alt,
         heading, pitch, roll,
-        fovHtml,
+        fov,
         sensorRelAzimuth, sensorRelElevation, sensorRelRoll,
         frameCenterLat, frameCenterLon, frameCenterAlt
     } = packet;
 
-    if (lat === undefined || lon === undefined || alt === undefined) return;
+    // Calibration Values
+    const altOffset = parseFloat(altOffsetInput ? altOffsetInput.value : 0) || 0;
+    const azBias = parseFloat(azBiasInput ? azBiasInput.value : 0) || 0;
+    const elBias = parseFloat(elBiasInput ? elBiasInput.value : 0) || 0;
+    const rollBias = parseFloat(rollBiasInput ? rollBiasInput.value : 0) || 0;
 
-    const platformPos = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+    // Apply Altitude Offset
+    const adjustedAlt = (alt !== undefined) ? alt + altOffset : undefined;
+    const adjustedCenterAlt = (frameCenterAlt !== undefined) ? frameCenterAlt + altOffset : undefined;
+
+    // Apply Sensor Biases - these affect the sensor relative angles
+    const adjustedSensorAz = (sensorRelAzimuth !== undefined) ? sensorRelAzimuth + azBias : undefined;
+    const adjustedSensorEl = (sensorRelElevation !== undefined) ? sensorRelElevation + elBias : undefined;
+    const adjustedSensorRoll = (sensorRelRoll !== undefined) ? sensorRelRoll + rollBias : undefined;
+
+    // if (shouldLog) {
+    //     console.log(`updateCameraFromPacket`, {
+    //         altOffset: altOffset,
+    //         azBias: azBias,
+    //         elBias: elBias,
+    //         rollBias: rollBias,
+    //         adjustedAlt: adjustedAlt,
+    //         adjustedCenterAlt: adjustedCenterAlt,
+    //         adjustedSensorAz: adjustedSensorAz,
+    //         adjustedSensorEl: adjustedSensorEl,
+    //         adjustedSensorRoll: adjustedSensorRoll
+    //     });
+    // }
+
+    if (lat === undefined || lon === undefined || adjustedAlt === undefined) return;
+
+    const platformPos = Cesium.Cartesian3.fromDegrees(lon, lat, adjustedAlt);
     const toRadians = (deg) => Cesium.Math.toRadians(deg || 0);
+
+    if (frameCenterLat === undefined || frameCenterLon === undefined) {
+        console.log("frameCenterLat or frameCenterLon is undefined");
+    }
 
     // 1. Priority: Frame Center (LookAt)
     if (useFrameCenterToggle?.checked && frameCenterLat !== undefined && frameCenterLon !== undefined) {
-        const centerPos = Cesium.Cartesian3.fromDegrees(frameCenterLon, frameCenterLat, frameCenterAlt || 0);
+        const centerPos = Cesium.Cartesian3.fromDegrees(frameCenterLon, frameCenterLat, adjustedCenterAlt || 0);
 
-        // viewer.camera.lookAt takes the offset in the local East-North-Up reference frame.
-        // We must transform the platform position (ECEF) into the local frame of the center position.
+        // 1. Define the Platform's Body Frame (Orientation in ECEF)
+        const platformHPR = new Cesium.HeadingPitchRoll(toRadians(heading), toRadians(pitch), toRadians(roll));
+        const platformTransform = Cesium.Transforms.headingPitchRollToFixedFrame(platformPos, platformHPR);
 
-        const transform = Cesium.Transforms.eastNorthUpToFixedFrame(centerPos);
-        const invTransform = Cesium.Matrix4.inverse(transform, new Cesium.Matrix4());
-        const offsetENU = Cesium.Matrix4.multiplyByPoint(invTransform, platformPos, new Cesium.Cartesian3());
+        // 2. Calculate the Vector to the Target in World Space (ECEF)
+        const targetVectorECEF = Cesium.Cartesian3.subtract(centerPos, platformPos, new Cesium.Cartesian3());
+        Cesium.Cartesian3.normalize(targetVectorECEF, targetVectorECEF);
 
-        viewer.camera.lookAt(centerPos, offsetENU);
+        // 3. APPLY BIASES: We need the target vector in the Platform's local frame
+        const invPlatformTransform = Cesium.Matrix4.inverse(platformTransform, new Cesium.Matrix4());
+        const targetVectorBody = Cesium.Matrix4.multiplyByPointAsVector(invPlatformTransform, targetVectorECEF, new Cesium.Cartesian3());
+
+        // Apply az/el biases to the local body vector
+        const rangeBody = Cesium.Cartesian3.magnitude(targetVectorBody);
+        let bAz = Math.atan2(targetVectorBody.x, targetVectorBody.y) + toRadians(azBias);
+        let bEl = Math.asin(targetVectorBody.z / rangeBody) + toRadians(elBias);
+
+        const correctedBodyDir = new Cesium.Cartesian3(
+            Math.cos(bEl) * Math.sin(bAz),
+            Math.cos(bEl) * Math.cos(bAz),
+            Math.sin(bEl)
+        );
+
+        // 4. Transform corrected direction back to World Space
+        const correctedDirECEF = Cesium.Matrix4.multiplyByPointAsVector(platformTransform, correctedBodyDir, new Cesium.Cartesian3());
+
+        // 5. CRITICAL STEP: Define "Up" as the Aircraft's "Top" (Z-Axis of the platformTransform)
+        // This prevents the "spinning map" at nadir because the camera's 'Up' 
+        // is now locked to the plane's roof, not the Earth's North Pole.
+        const aircraftUpECEF = new Cesium.Cartesian3();
+        Cesium.Matrix4.getColumn(platformTransform, 2, aircraftUpECEF); // Gets the Z column (Up)
+
+        viewer.camera.setView({
+            destination: platformPos,
+            orientation: {
+                direction: correctedDirECEF,
+                up: aircraftUpECEF
+            }
+        });
+
+        // 6. Apply the final relative Sensor Roll
+        // We use negative because twistLeft is counter-clockwise
+        viewer.camera.twistLeft(-toRadians(adjustedSensorRoll || 0));
+
     } else {
         // Reset lookAt transform if it was active
         if (viewer.camera.lookAtTransformSupported && viewer.camera.transform !== Cesium.Matrix4.IDENTITY) {
@@ -299,15 +377,15 @@ function updateCameraFromPacket(packet) {
 
         // 2. Priority: Combined Platform + Sensor
         if (combineAnglesToggle?.checked) {
-            h = (heading || 0) + (sensorRelAzimuth || 0);
-            p = (pitch || 0) + (sensorRelElevation || 0);
-            r = (roll || 0) + (sensorRelRoll || 0);
+            h = (heading || 0) + (adjustedSensorAz || 0);
+            p = (pitch || 0) + (adjustedSensorEl || 0);
+            r = (roll || 0) + (adjustedSensorRoll || 0);
         }
         // 3. Priority: Sensor Only
         else if (useSensorAnglesToggle?.checked) {
-            h = sensorRelAzimuth || 0;
-            p = sensorRelElevation || 0;
-            r = sensorRelRoll || 0;
+            h = adjustedSensorAz || 0;
+            p = adjustedSensorEl || 0;
+            r = adjustedSensorRoll || 0;
         }
         // 4. Fallback: Look straight down (Nadir)
         else {
@@ -338,16 +416,19 @@ function updateCameraFromPacket(packet) {
     // COMMON HUD Updates
     if (hudEls.platformLat) hudEls.platformLat.textContent = lat?.toFixed(6) ?? "N/A";
     if (hudEls.platformLon) hudEls.platformLon.textContent = lon?.toFixed(6) ?? "N/A";
-    if (hudEls.platformAlt) hudEls.platformAlt.textContent = alt?.toFixed(1) ?? "N/A";
+    if (hudEls.platformAlt) hudEls.platformAlt.textContent = adjustedAlt?.toFixed(1) ?? "N/A";
     if (hudEls.platformHeading) hudEls.platformHeading.textContent = heading?.toFixed(2) ?? "N/A";
     if (hudEls.platformPitch) hudEls.platformPitch.textContent = pitch?.toFixed(2) ?? "N/A";
     if (hudEls.platformRoll) hudEls.platformRoll.textContent = roll?.toFixed(2) ?? "N/A";
+
+    // Display biased sensor values? Or raw? Let's display RAW sensor values for debugging, OR biased.
+    // Ideally user wants to know what's BEING USED. Let's show adjusted.
     if (hudEls.sensorAzimuth) hudEls.sensorAzimuth.textContent = sensorRelAzimuth?.toFixed(2) ?? "N/A";
     if (hudEls.sensorElevation) hudEls.sensorElevation.textContent = sensorRelElevation?.toFixed(2) ?? "N/A";
     if (hudEls.sensorRoll) hudEls.sensorRoll.textContent = sensorRelRoll?.toFixed(2) ?? "N/A";
 
     // FOV Handling
-    let fovToUse = fovHtml;
+    let fovToUse = fov;
 
     // If Slave FOV is OFF, use Manual Slider
     if (!fovToggle || !fovToggle.checked) {
@@ -368,6 +449,7 @@ function updateCameraFromPacket(packet) {
 function handleMetadata(eventType, data) {
     packetCount++;
     const shouldLog = packetCount < 10 || packetCount % 60 === 0;
+    const convertToHAE = true;
 
     try {
         let validData = data;
@@ -396,12 +478,12 @@ function handleMetadata(eventType, data) {
             const pts = findValue("Precision Time Stamp");
             const lat = findValue("Sensor Latitude");
             const lon = findValue("Sensor Longitude");
-            const alt = findValue("Sensor True Altitude");
+            let alt = findValue("Sensor True Altitude"); // MSL!!!
 
             const heading = findValue("Platform Heading Angle");
             const pitch = findValue("Platform Pitch Angle");
             const roll = findValue("Platform Roll Angle");
-            const fovHtml = findValue("Sensor Horizontal Field of View");
+            const fov = findValue("Sensor Horizontal Field of View");
 
             const sensorRelAzimuth = findValue("Sensor Relative Azimuth Angle");
             const sensorRelElevation = findValue("Sensor Relative Elevation Angle");
@@ -409,10 +491,16 @@ function handleMetadata(eventType, data) {
 
             const frameCenterLat = findValue("Frame Center Latitude");
             const frameCenterLon = findValue("Frame Center Longitude");
-            const frameCenterAlt = findValue("Frame Center Elevation") || 0; // Default to 0 if missing.
+            let frameCenterAlt = findValue("Frame Center Elevation") || 0; // MSL!!!
+
+            // Convert to HAE
+            if (convertToHAE) {
+                alt = EGM96.egm96ToEllipsoid(lat, lon, alt);
+                frameCenterAlt = EGM96.egm96ToEllipsoid(frameCenterLat, frameCenterLon, frameCenterAlt);
+            }
 
             if (shouldLog) {
-                // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fovHtml });
+                // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fov });
             }
 
             if (pts !== undefined) {
@@ -429,7 +517,7 @@ function handleMetadata(eventType, data) {
                     heading,
                     pitch,
                     roll,
-                    fovHtml,
+                    fov,
                     sensorRelAzimuth,
                     sensorRelElevation,
                     sensorRelRoll,
