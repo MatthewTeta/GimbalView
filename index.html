@@ -134,12 +134,33 @@
     #hudContent span {
       color: #00ffcc;
     }
+
+    .github-link-container {
+      font-size: 0.75em;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 5px;
+      border-radius: 4px;
+    }
+
+    .github-link-container a {
+      color: #00ffcc;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .github-link-container a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 
 <body>
 
   <div id="uiContainer">
+    <div class="github-link-container">
+      <a href="https://github.com/MatthewTeta/GimbalView" target="_blank">GitHub: MatthewTeta/GimbalView</a>
+    </div>
     <input type="file" id="fileInput" accept=".ts" />
 
     <div id="controls" class="control-section">

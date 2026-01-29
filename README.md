@@ -13,7 +13,7 @@ A high-performance web application for visualizing geospatial video and KLV (Key
 
 ### Video & Metadata Player
 - **MPEG-TS Support:** Uses `mpegts.js` to play transport streams directly in the browser.
-- **KLV Parsing:** Parses MISB ST 0601 metadata embedded in the video stream to extract Platform Position, Attitude, and Sensor Angles.
+- **KLV Parsing:** Parses MISB ST 0601 metadata embedded in the video stream to extract Platform Position, Attitude, and Sensor Angles. [MISB Standard 0607](https://upload.wikimedia.org/wikipedia/commons/1/19/MISB_Standard_0601.pdf)
 - **Time Synchronization:** Syncs video playback time with metadata timestamps (PTS) for accurate correlation.
 
 ### Advanced Controls & Calibration
