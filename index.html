@@ -6,7 +6,9 @@
   <link rel="icon" href="/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cesium 3D Tiles Exaggeration</title>
+
   <style>
+    /* Layout Basics */
     html,
     body,
     #cesiumContainer {
@@ -15,135 +17,249 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
+      background: #000;
+    }
+
+    /* Main UI Panel */
+    #uiContainer {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 8px;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 280px;
+      max-height: 95vh;
+      overflow-y: auto;
+      font-family: sans-serif;
+    }
+
+    /* Video Overlay Layer */
+    #videoContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #videoElement {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      opacity: 0.5;
+    }
+
+    /* Section Grouping */
+    .control-section {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .divider {
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      margin-top: 8px;
+      padding-top: 8px;
+    }
+
+    /* Inputs & Labels */
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.9em;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    /* Consistency for Sliders */
+    input[type="range"] {
+      width: 100%;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+
+    input[type="number"] {
+      width: 50px;
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 3px;
+    }
+
+    /* Buttons */
+    button {
+      width: 100%;
+      padding: 6px;
+      cursor: pointer;
+      background: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #555;
+    }
+
+    .adjust-btn {
+      width: 28px;
+      padding: 2px;
+      font-family: monospace;
+    }
+
+    /* HUD Styling */
+    #hudContent {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px;
+      border-radius: 4px;
+      line-height: 1.4;
+    }
+
+    #hudContent span {
+      color: #00ffcc;
     }
   </style>
 </head>
 
-<div id="uiContainer"
-  style="position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: white; display: flex; flex-direction: column; gap: 10px;">
-  <input type="file" id="fileInput" accept=".ts" />
+<body>
 
-  <div id="controls" style="background: rgba(0,0,0,0.3); padding: 5px; border-radius: 3px;">
-    <button id="toggleHudBtn" style="width: 100%; margin-bottom: 5px; cursor: pointer;">Toggle HUD</button>
-    <label style="display: block;">
-      <input type="checkbox" id="fovToggle" checked> Slave FOV
-    </label>
-    <label style="display: block;">
-      <input type="checkbox" id="useSensorAngles" /> Use Sensor Angles
-    </label>
-    <label style="display: block;">
-      <input type="checkbox" id="combineAnglesToggle" /> Combine Angles
-    </label>
-    <label style="display: block;">
-      <input type="checkbox" id="useFrameCenter" /> Use Frame Center
-    </label>
-    <div style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
-      <label style="display: block;" title="Delays KLV processing relative to video to account for display latency.">
-        Delay: <span id="val_delay_disp">0</span>ms
-        <input type="range" id="dataDelay" min="-1000" max="1000" step="10" value="0" style="width: 100%;"
-          oninput="document.getElementById('val_delay_disp').textContent=this.value" />
-      </label>
-      <label style="display: block;" title="Number of samples to average for smoother motion.">
-        Avg Window:
-        <input type="number" id="avgWindow" min="1" max="60" value="1" style="width: 40px; color: black;" />
-      </label>
-      <label style="display: block;" title="Manual FOV when Slave FOV is off.">
-        Manual FOV: <span id="val_man_fov">45</span>&deg;
-        <input type="range" id="manualFov" min="1" max="18" step="0.01" value="8" style="width: 100%;"
-          oninput="document.getElementById('val_man_fov').textContent=this.value" />
-      </label>
-      <label style="display: block;" title="Video Opacity Overlay">
-        Video Opacity: <span id="val_opacity">0.5</span>
-        <input type="range" id="videoOpacity" min="0" max="1" step="0.1" value="0.5" style="width: 100%;"
-          oninput="document.getElementById('val_opacity').textContent=this.value" />
-      </label>
-      <label style="display: block; margin-top: 5px;">
-        <input type="checkbox" id="diffModeToggle" /> Difference Mode
-      </label>
-      <button id="playPauseBtn" style="width: 100%; margin-top: 5px; cursor: pointer;">Play / Pause</button>
+  <div id="uiContainer">
+    <input type="file" id="fileInput" accept=".ts" />
 
-      <!-- Calibration Controls -->
-      <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 5px;">
-        <div style="font-weight: bold; margin-bottom: 5px;">Calibration</div>
+    <div id="controls" class="control-section">
+      <button id="toggleHudBtn">Toggle HUD</button>
 
-        <!-- Alt Offset -->
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span title="Altitude Offset (m)">Alt Offset</span>
-            <span><span id="val_alt_offset">0</span>m</span>
+      <label><input type="checkbox" id="fovToggle" checked> Slave FOV</label>
+      <label><input type="checkbox" id="useSensorAngles" /> Use Sensor Angles</label>
+      <label><input type="checkbox" id="combineAnglesToggle" /> Combine Angles</label>
+      <label><input type="checkbox" id="useFrameCenter" /> Use Frame Center</label>
+
+      <div class="divider">
+        <div title="Delays KLV processing">
+          <div class="row">Delay: <span><span id="val_delay_disp">0</span>ms</span></div>
+          <div class="row">
+            <button class="adjust-btn" data-target="dataDelay" data-action="decrease" data-step="10">-</button>
+            <input type="range" id="dataDelay" min="-1000" max="1000" step="1" value="0"
+              oninput="val_delay_disp.textContent=this.value" />
+            <button class="adjust-btn" data-target="dataDelay" data-action="increase" data-step="10">+</button>
+            <button class="adjust-btn" data-target="dataDelay" data-action="reset">R</button>
           </div>
-          <div style="display: flex; align-items: center; gap: 5px;">
+        </div>
+
+        <div class="row" title="Number of samples to average">
+          <span>Avg Window:</span>
+          <input type="number" id="avgWindow" min="1" max="60" value="1" />
+        </div>
+
+        <div title="Manual FOV when Slave FOV is off.">
+          <div class="row">Manual FOV: <span><span id="val_man_fov">45</span>&deg;</span></div>
+          <div class="row">
+            <button class="adjust-btn" data-target="manualFov" data-action="decrease" data-step="0.05">-</button>
+            <input type="range" id="manualFov" min="1" max="18" step="0.01" value="8"
+              oninput="val_man_fov.textContent=this.value" />
+            <button class="adjust-btn" data-target="manualFov" data-action="increase" data-step="0.05">+</button>
+            <button class="adjust-btn" data-target="manualFov" data-action="reset">R</button>
+          </div>
+        </div>
+
+        <div title="Video Opacity Overlay">
+          <div class="row">Video Opacity: <span id="val_opacity">0.5</span></div>
+          <div class="row">
+            <button class="adjust-btn" data-target="videoOpacity" data-action="decrease" data-step="0.1">-</button>
+            <input type="range" id="videoOpacity" min="0" max="1" step="0.1" value="0.5"
+              oninput="val_opacity.textContent=this.value" />
+            <button class="adjust-btn" data-target="videoOpacity" data-action="increase" data-step="0.1">+</button>
+            <button class="adjust-btn" data-target="videoOpacity" data-action="reset">R</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 5px;">
+          <label for="blendModeSelect" style="display: block; margin-bottom: 2px;">Blend Mode:</label>
+          <select id="blendModeSelect"
+            style="width: 100%; padding: 4px; background: #333; color: white; border: 1px solid #555;">
+            <option value="normal">normal</option>
+            <option value="darken">darken</option>
+            <option value="multiply">multiply</option>
+            <option value="color-burn">color-burn</option>
+            <option value="lighten">lighten</option>
+            <option value="screen">screen</option>
+            <option value="color-dodge">color-dodge</option>
+            <option value="overlay">overlay</option>
+            <option value="soft-light">soft-light</option>
+            <option value="hard-light">hard-light</option>
+            <option value="difference">difference</option>
+            <option value="exclusion">exclusion</option>
+            <option value="hue">hue</option>
+            <option value="saturation">saturation</option>
+            <option value="color">color</option>
+            <option value="luminosity">luminosity</option>
+          </select>
+        </div>
+        <button id="playPauseBtn" style="margin-top: 8px;">Play / Pause</button>
+      </div>
+
+      <div class="divider">
+        <div
+          style="font-weight: bold; margin-bottom: 8px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">
+          Calibration</div>
+
+        <div class="calibration-group">
+          <div class="row"><span>Alt Offset</span> <span><span id="val_alt_offset">0</span>m</span></div>
+          <div class="row">
             <button class="adjust-btn" data-target="altOffset" data-action="decrease" data-step="0.1">-</button>
-            <input type="range" id="altOffset" min="-10" max="10" step="0.001" value="0" style="flex-grow: 1;"
-              oninput="document.getElementById('val_alt_offset').textContent=this.value" />
+            <input type="range" id="altOffset" min="-10" max="10" step="0.001" value="0"
+              oninput="val_alt_offset.textContent=this.value" />
             <button class="adjust-btn" data-target="altOffset" data-action="increase" data-step="0.1">+</button>
             <button class="adjust-btn" data-target="altOffset" data-action="reset">R</button>
           </div>
-        </div>
 
-        <!-- Az Bias -->
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span title="Sensor Azimuth Bias (deg)">Az Bias</span>
-            <span><span id="val_az_bias">0</span>&deg;</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 5px;">
+          <div class="row"><span>Az Bias</span> <span><span id="val_az_bias">0</span>&deg;</span></div>
+          <div class="row">
             <button class="adjust-btn" data-target="azBias" data-action="decrease" data-step="0.01">-</button>
-            <input type="range" id="azBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
-              oninput="document.getElementById('val_az_bias').textContent=this.value" />
+            <input type="range" id="azBias" min="-3" max="3" step="0.0001" value="0"
+              oninput="val_az_bias.textContent=this.value" />
             <button class="adjust-btn" data-target="azBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="azBias" data-action="reset">R</button>
           </div>
-        </div>
 
-        <!-- El Bias -->
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span title="Sensor Elevation Bias (deg)">El Bias</span>
-            <span><span id="val_el_bias">0</span>&deg;</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 5px;">
+          <div class="row"><span>El Bias</span> <span><span id="val_el_bias">0</span>&deg;</span></div>
+          <div class="row">
             <button class="adjust-btn" data-target="elBias" data-action="decrease" data-step="0.01">-</button>
-            <input type="range" id="elBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
-              oninput="document.getElementById('val_el_bias').textContent=this.value" />
+            <input type="range" id="elBias" min="-3" max="3" step="0.0001" value="0"
+              oninput="val_el_bias.textContent=this.value" />
             <button class="adjust-btn" data-target="elBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="elBias" data-action="reset">R</button>
           </div>
-        </div>
 
-        <!-- Roll Bias -->
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span title="Sensor Roll Bias (deg)">Roll Bias</span>
-            <span><span id="val_roll_bias">0</span>&deg;</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.05">-</button>
-            <input type="range" id="rollBias" min="-10" max="10" step="0.0001" value="0" style="flex-grow: 1;"
-              oninput="document.getElementById('val_roll_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.05">+</button>
+          <div class="row"><span>Roll Bias</span> <span><span id="val_roll_bias">0</span>&deg;</span></div>
+          <div class="row">
+            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.01">-</button>
+            <input type="range" id="rollBias" min="-3" max="3" step="0.0001" value="0"
+              oninput="val_roll_bias.textContent=this.value" />
+            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="rollBias" data-action="reset">R</button>
-          </div>
-
-          <!-- FOV Bias -->
-          <div style="margin-bottom: 5px;">
-            <div style="display: flex; justify-content: space-between;">
-              <span title="Sensor HFOV Bias (deg)">FOV Bias</span>
-              <span><span id="val_fov_bias">0</span>&deg;</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <button class="adjust-btn" data-target="fovBias" data-action="decrease" data-step="0.05">-</button>
-              <input type="range" id="fovBias" min="-10" max="10" step="0.01" value="0" style="flex-grow: 1;"
-                oninput="document.getElementById('val_fov_bias').textContent=this.value" />
-              <button class="adjust-btn" data-target="fovBias" data-action="increase" data-step="0.05">+</button>
-              <button class="adjust-btn" data-target="fovBias" data-action="reset">R</button>
-            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="hudContent" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px;">
+    <div id="hudContent">
       <div>FOV: <span id="val_fov">N/A</span></div>
       <div>Platform Lat: <span id="val_platform_lat">N/A</span></div>
       <div>Platform Lon: <span id="val_platform_lon">N/A</span></div>
@@ -154,19 +270,17 @@
       <div>Sensor Azimuth: <span id="val_sensor_azimuth">N/A</span></div>
       <div>Sensor Elevation: <span id="val_sensor_elevation">N/A</span></div>
       <div>Sensor Roll: <span id="val_sensor_roll">N/A</span></div>
-      <div>Final Heading: <span id="val_final_heading">N/A</span></div>
-      <div>Final Pitch: <span id="val_final_pitch">N/A</span></div>
-      <div>Final Roll: <span id="val_final_roll">N/A</span></div>
     </div>
   </div>
-</div>
-<div id="videoContainer"
-  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5;">
-  <video id="videoElement" style="width: 100%; height: 100%; object-fit: contain; opacity: 0.5;"></video>
-</div>
-<div id="cesiumContainer"></div>
-<script src="/misb-browser.js"></script>
-<script type="module" src="./main.js"></script>
+
+  <div id="videoContainer">
+    <video id="videoElement"></video>
+  </div>
+
+  <div id="cesiumContainer"></div>
+
+  <script src="/misb-browser.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 
 </html>

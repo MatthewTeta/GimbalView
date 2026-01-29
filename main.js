@@ -33,6 +33,7 @@ scene.skyAtmosphere.show = true;
 // MpegTS Player Integration
 const fileInput = document.getElementById("fileInput");
 const videoElement = document.getElementById("videoElement");
+const videoContainer = document.getElementById("videoContainer");
 
 // HUD Elements
 const hudEls = {
@@ -65,7 +66,7 @@ const azBiasInput = document.getElementById("azBias");
 const elBiasInput = document.getElementById("elBias");
 const rollBiasInput = document.getElementById("rollBias");
 const fovBiasInput = document.getElementById("fovBias");
-const diffModeToggle = document.getElementById("diffModeToggle");
+
 const toggleHudBtn = document.getElementById("toggleHudBtn");
 
 let lastKlvData = null; // Store last packet for paused updates
@@ -92,6 +93,24 @@ if (playPauseBtn) {
                 videoElement.pause();
                 playPauseBtn.textContent = "Play";
             }
+        }
+    });
+}
+
+if (toggleHudBtn) {
+    toggleHudBtn.addEventListener("click", () => {
+        const hud = document.getElementById("hudContent");
+        if (hud) {
+            hud.style.display = hud.style.display === "none" ? "block" : "none";
+        }
+    });
+}
+
+const blendModeSelect = document.getElementById("blendModeSelect");
+if (blendModeSelect) {
+    blendModeSelect.addEventListener("change", (e) => {
+        if (videoContainer) {
+            videoContainer.style.mixBlendMode = e.target.value;
         }
     });
 }
@@ -124,11 +143,7 @@ document.querySelectorAll(".adjust-btn").forEach((btn) => {
 
         // Round to avoid float errors (optional but good for display)
         // Using logic based on step size to determine precision
-        if (step < 0.1) {
-            currentVal = Math.round(currentVal * 100) / 100;
-        } else {
-            currentVal = Math.round(currentVal * 10) / 10;
-        }
+        currentVal = Math.round(currentVal * 1 / step) / (1 / step);
 
         input.value = currentVal;
 
@@ -218,7 +233,7 @@ scene.preRender.addEventListener(() => {
     const currentVideoTime = videoElement.currentTime;
 
     // Get Delay in Seconds
-    const delayMs = parseInt(dataDelayInput ? dataDelayInput.value : 0) || 0;
+    const delayMs = parseFloat(dataDelayInput ? dataDelayInput.value : 0) || 0;
     const delaySec = delayMs / 1000.0;
 
     // Target PTS
@@ -493,7 +508,7 @@ function updateCameraFromPacket(packet) {
 
     // If Slave FOV is OFF, use Manual Slider
     if (!fovToggle || !fovToggle.checked) {
-        const manFov = parseInt(manualFovInput ? manualFovInput.value : 45) || 45;
+        const manFov = parseFloat(manualFovInput ? manualFovInput.value : 18) || 18;
         fovToUse = manFov; // Use raw degrees here, converted below
     }
 
