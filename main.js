@@ -65,6 +65,8 @@ const azBiasInput = document.getElementById("azBias");
 const elBiasInput = document.getElementById("elBias");
 const rollBiasInput = document.getElementById("rollBias");
 
+let lastKlvData = null; // Store last packet for paused updates
+
 // Controls Logic
 if (videoOpacityInput) {
     videoOpacityInput.addEventListener("input", (e) => {
@@ -90,6 +92,52 @@ if (playPauseBtn) {
         }
     });
 }
+
+// Calibration Button Logic
+document.querySelectorAll(".adjust-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        const targetId = btn.dataset.target;
+        const action = btn.dataset.action;
+        const step = parseFloat(btn.dataset.step) || 0.1; // Default step if not specified
+        const input = document.getElementById(targetId);
+
+        if (!input) return;
+
+        let currentVal = parseFloat(input.value);
+
+        if (action === "increase") {
+            currentVal += step;
+        } else if (action === "decrease") {
+            currentVal -= step;
+        } else if (action === "reset") {
+            currentVal = parseFloat(input.defaultValue) || 0;
+        }
+
+        // Clamp
+        const max = parseFloat(input.max);
+        const min = parseFloat(input.min);
+        if (currentVal > max) currentVal = max;
+        if (currentVal < min) currentVal = min;
+
+        // Round to avoid float errors (optional but good for display)
+        // Using logic based on step size to determine precision
+        if (step < 0.1) {
+            currentVal = Math.round(currentVal * 100) / 100;
+        } else {
+            currentVal = Math.round(currentVal * 10) / 10;
+        }
+
+        input.value = currentVal;
+
+        // Update Label
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+
+        // Force update if paused
+        if (videoElement && videoElement.paused && lastKlvData) {
+            updateCameraFromPacket(lastKlvData);
+        }
+    });
+});
 
 
 let packetCount = 0;
@@ -153,7 +201,14 @@ if (fileInput) {
 
 // Subscribe to render loop for valid sync
 scene.preRender.addEventListener(() => {
-    if (!videoElement || videoElement.paused || videoElement.ended || klvBuffer.length === 0) return;
+    if (!videoElement || videoElement.ended || klvBuffer.length === 0) return;
+
+    if (videoElement.paused) {
+        if (lastKlvData) {
+            updateCameraFromPacket(lastKlvData);
+        }
+        return;
+    }
 
     if (firstPts === null) return;
 
@@ -270,6 +325,7 @@ function computeAveragePacket(packets) {
 
 let updateCount = 0;
 function updateCameraFromPacket(packet) {
+    lastKlvData = packet; // Update global last packet
     updateCount++;
     const shouldLog = updateCount % 60 === 0;
 
