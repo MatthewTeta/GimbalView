@@ -159,6 +159,7 @@ document.querySelectorAll(".adjust-btn").forEach((btn) => {
 });
 
 
+let lastPacketIndex = 0;
 let packetCount = 0;
 let klvBuffer = [];
 let firstPts = null;      // PTS of the very first packet (microseconds)
@@ -172,6 +173,7 @@ if (fileInput) {
 
         if (mpegts.getFeatureList().mseLivePlayback) {
             // Reset state
+            lastPacketIndex = 0;
             klvBuffer = [];
             packetCount = 0;
             firstPts = null;
@@ -244,9 +246,18 @@ scene.preRender.addEventListener(() => {
     let bestIndex = -1;
     let minDiff = Infinity;
 
-    // Simple linear scan (optimization possible)
-    for (let i = 0; i < klvBuffer.length; i++) {
+    let startIndex = lastPacketIndex;
+
+    if (currentVideoTime < (klvBuffer[lastPacketIndex]?.pts || 0) / 1000000) {
+        startIndex = 0;
+    }
+
+    // Simple linear scan
+    for (let i = startIndex; i < klvBuffer.length; i++) {
         const diff = Math.abs(klvBuffer[i].pts - targetPts);
+        if (diff > minDiff && minDiff < 100000) { // 100ms tolerance
+            break;
+        }
         if (diff < minDiff) {
             minDiff = diff;
             bestIndex = i;
@@ -254,6 +265,8 @@ scene.preRender.addEventListener(() => {
     }
 
     if (bestIndex !== -1) {
+        lastPacketIndex = bestIndex;
+
         // Averaging
         const platWindowSize = parseInt(platWindowInput ? platWindowInput.value : 1) || 1;
         const sensWindowSize = parseInt(sensWindowInput ? sensWindowInput.value : 1) || 1;
@@ -294,24 +307,15 @@ scene.preRender.addEventListener(() => {
     }
 });
 
-function toRad(deg) {
-    return (deg * Math.PI) / 180;
-}
-
-function toDeg(rad) {
-    return (rad * 180) / Math.PI;
-}
-
 function computeAveragePacket(packets) {
     let sumLat = 0, sumLon = 0, sumAlt = 0;
     let sumPitch = 0, sumRoll = 0, sumFov = 0;
     let sumSensorAz = 0, sumSensorEl = 0, sumSensorRoll = 0;
     let sumCenterLat = 0, sumCenterLon = 0, sumCenterAlt = 0;
 
-    // // Circular mean for Heading
-    // let sumSinHeading = 0;
-    // let sumCosHeading = 0;
-    let sumHeading = 0;
+    // Circular mean for Heading
+    let sumSinHeading = 0;
+    let sumCosHeading = 0;
 
     let count = packets.length;
 
@@ -321,10 +325,9 @@ function computeAveragePacket(packets) {
         sumAlt += (p.alt || 0);
 
         // Heading wrapping
-        // const hRad = toRad(p.heading || 0);
-        // sumSinHeading += Math.sin(hRad);
-        // sumCosHeading += Math.cos(hRad);
-        sumHeading += (p.heading || 0);
+        const hRad = Cesium.Math.toRadians(p.heading || 0);
+        sumSinHeading += Math.sin(hRad);
+        sumCosHeading += Math.cos(hRad);
 
         sumPitch += (p.pitch || 0);
         sumRoll += (p.roll || 0);
@@ -339,9 +342,8 @@ function computeAveragePacket(packets) {
         sumCenterAlt += (p.frameCenterAlt || 0);
     }
 
-    // const avgHeadingRad = Math.atan2(sumSinHeading / count, sumCosHeading / count);
-    // const avgHeading = (toDeg(avgHeadingRad) + 360) % 360;
-    const avgHeading = sumHeading / count;
+    const avgHeadingRad = Math.atan2(sumSinHeading / count, sumCosHeading / count);
+    const avgHeading = (Cesium.Math.toDegrees(avgHeadingRad) + 360) % 360;
 
     return {
         lat: sumLat / count,
@@ -389,20 +391,6 @@ function updateCameraFromPacket(packet) {
     const adjustedSensorAz = (sensorRelAzimuth !== undefined) ? sensorRelAzimuth + azBias : undefined;
     const adjustedSensorEl = (sensorRelElevation !== undefined) ? sensorRelElevation + elBias : undefined;
     const adjustedSensorRoll = (sensorRelRoll !== undefined) ? sensorRelRoll + rollBias : undefined;
-
-    // if (shouldLog) {
-    //     console.log(`updateCameraFromPacket`, {
-    //         altOffset: altOffset,
-    //         azBias: azBias,
-    //         elBias: elBias,
-    //         rollBias: rollBias,
-    //         adjustedAlt: adjustedAlt,
-    //         adjustedCenterAlt: adjustedCenterAlt,
-    //         adjustedSensorAz: adjustedSensorAz,
-    //         adjustedSensorEl: adjustedSensorEl,
-    //         adjustedSensorRoll: adjustedSensorRoll
-    //     });
-    // }
 
     if (lat === undefined || lon === undefined || adjustedAlt === undefined) return;
 
@@ -525,13 +513,13 @@ function updateCameraFromPacket(packet) {
     let fov2 = fov + fovBias;
     let fovToUse = fov2;
 
+    if (hudEls.fov) hudEls.fov.textContent = fovToUse?.toFixed(2) ?? "N/A";
+
     // If Slave FOV is OFF, use Manual Slider
     if (!fovToggle || !fovToggle.checked) {
         const manFov = parseFloat(manualFovInput ? manualFovInput.value : 18) || 18;
         fovToUse = manFov; // Use raw degrees here, converted below
     }
-
-    if (hudEls.fov) hudEls.fov.textContent = fovToUse?.toFixed(2) ?? "N/A";
 
     if (fovToUse !== undefined) {
         const fovRad = toRadians(fovToUse);
@@ -546,10 +534,6 @@ function updateCameraFromPacket(packet) {
         if (fov2 !== undefined && videoElement) {
             const videoFovRad = toRadians(fov2);
             const mapFovRad = fovRad; // The one we just set
-            // console.log("fovToUse", fovToUse);
-            // console.log("fovRad", fovRad);
-            // console.log("videoFovRad", videoFovRad);
-            // console.log("mapFovRad", mapFovRad);
 
             // Avoid divide by zero
             if (mapFovRad > 0.0001) {
@@ -611,10 +595,6 @@ function handleMetadata(eventType, data) {
             if (convertToHAE) {
                 alt = EGM96.egm96ToEllipsoid(lat, lon, alt);
                 frameCenterAlt = EGM96.egm96ToEllipsoid(frameCenterLat, frameCenterLon, frameCenterAlt);
-            }
-
-            if (shouldLog) {
-                // console.log(`[${eventType}] Pkt #${packetCount} Values:`, { lat, lon, alt, heading, pitch, roll, fov });
             }
 
             if (pts !== undefined) {

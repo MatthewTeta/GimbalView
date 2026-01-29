@@ -2,6 +2,8 @@
 
 A high-performance web application for visualizing geospatial video and KLV (Key-Length-Value) metadata in a 3D environment using CesiumJS. This tool synchronizes MPEG-TS video playback with telemetry data to project the sensor's field of view onto the globe, providing a rich "sensor-eye" visualization experience.
 
+![Gimbal Video with Cesium 3D View Surrounding](GimbalView.png)
+
 ## Features
 
 ### 3D Geospatial Visualization
