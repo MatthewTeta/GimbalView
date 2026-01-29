@@ -1,9 +1,9 @@
 {
-  "name": "cesium_klv_js",
+  "name": "gimbalview",
   "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
+  "description": "Cesium web app for visualizing MISB 0607 KLV metadata embedded in MPEG-TS files in the browser",
+  "license": "MIT",
+  "author": "Matthew Teta",
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
