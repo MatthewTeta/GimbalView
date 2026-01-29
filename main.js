@@ -499,6 +499,21 @@ function updateCameraFromPacket(packet) {
         if (fovRad > 0.001 && fovRad < Math.PI) {
             viewer.camera.frustum.fov = fovRad;
         }
+
+        // --- Video Scaling ---
+        // Scale the video element so its visual FOV matches the Map's FOV.
+        // Concept: If Map is zoomed IN (small FOV), Video should look BIGGER (Scale > 1).
+        // Scale = tan(VideoFOV / 2) / tan(MapFOV / 2)
+        if (fov !== undefined && videoElement) {
+            const videoFovRad = toRadians(fov);
+            const mapFovRad = fovRad; // The one we just set
+
+            // Avoid divide by zero
+            if (mapFovRad > 0.0001) {
+                const scale = Math.tan(videoFovRad / 2) / Math.tan(mapFovRad / 2);
+                videoElement.style.transform = `scale(${scale})`;
+            }
+        }
     }
 }
 

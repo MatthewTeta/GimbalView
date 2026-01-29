@@ -69,10 +69,10 @@
             <span><span id="val_alt_offset">0</span>m</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="altOffset" data-action="decrease" data-step="1">-</button>
-            <input type="range" id="altOffset" min="-50" max="50" step="0.1" value="0" style="flex-grow: 1;"
+            <button class="adjust-btn" data-target="altOffset" data-action="decrease" data-step="0.1">-</button>
+            <input type="range" id="altOffset" min="-10" max="10" step="0.001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_alt_offset').textContent=this.value" />
-            <button class="adjust-btn" data-target="altOffset" data-action="increase" data-step="1">+</button>
+            <button class="adjust-btn" data-target="altOffset" data-action="increase" data-step="0.1">+</button>
             <button class="adjust-btn" data-target="altOffset" data-action="reset">R</button>
           </div>
         </div>
@@ -84,10 +84,10 @@
             <span><span id="val_az_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="azBias" data-action="decrease" data-step="0.05">-</button>
-            <input type="range" id="azBias" min="-3" max="3" step="0.01" value="0" style="flex-grow: 1;"
+            <button class="adjust-btn" data-target="azBias" data-action="decrease" data-step="0.001">-</button>
+            <input type="range" id="azBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_az_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="azBias" data-action="increase" data-step="0.05">+</button>
+            <button class="adjust-btn" data-target="azBias" data-action="increase" data-step="0.001">+</button>
             <button class="adjust-btn" data-target="azBias" data-action="reset">R</button>
           </div>
         </div>
@@ -99,10 +99,10 @@
             <span><span id="val_el_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="elBias" data-action="decrease" data-step="0.05">-</button>
-            <input type="range" id="elBias" min="-3" max="3" step="0.01" value="0" style="flex-grow: 1;"
+            <button class="adjust-btn" data-target="elBias" data-action="decrease" data-step="0.001">-</button>
+            <input type="range" id="elBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_el_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="elBias" data-action="increase" data-step="0.05">+</button>
+            <button class="adjust-btn" data-target="elBias" data-action="increase" data-step="0.001">+</button>
             <button class="adjust-btn" data-target="elBias" data-action="reset">R</button>
           </div>
         </div>
@@ -114,10 +114,10 @@
             <span><span id="val_roll_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.05">-</button>
-            <input type="range" id="rollBias" min="-3" max="3" step="0.01" value="0" style="flex-grow: 1;"
+            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.005">-</button>
+            <input type="range" id="rollBias" min="-10" max="10" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_roll_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.05">+</button>
+            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.005">+</button>
             <button class="adjust-btn" data-target="rollBias" data-action="reset">R</button>
           </div>
         </div>
