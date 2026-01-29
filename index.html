@@ -24,6 +24,7 @@
   <input type="file" id="fileInput" accept=".ts" />
 
   <div id="controls" style="background: rgba(0,0,0,0.3); padding: 5px; border-radius: 3px;">
+    <button id="toggleHudBtn" style="width: 100%; margin-bottom: 5px; cursor: pointer;">Toggle HUD</button>
     <label style="display: block;">
       <input type="checkbox" id="fovToggle" checked> Slave FOV
     </label>
@@ -48,13 +49,16 @@
       </label>
       <label style="display: block;" title="Manual FOV when Slave FOV is off.">
         Manual FOV: <span id="val_man_fov">45</span>&deg;
-        <input type="range" id="manualFov" min="1" max="179" step="1" value="45" style="width: 100%;"
+        <input type="range" id="manualFov" min="1" max="18" step="0.01" value="8" style="width: 100%;"
           oninput="document.getElementById('val_man_fov').textContent=this.value" />
       </label>
       <label style="display: block;" title="Video Opacity Overlay">
         Video Opacity: <span id="val_opacity">0.5</span>
         <input type="range" id="videoOpacity" min="0" max="1" step="0.1" value="0.5" style="width: 100%;"
           oninput="document.getElementById('val_opacity').textContent=this.value" />
+      </label>
+      <label style="display: block; margin-top: 5px;">
+        <input type="checkbox" id="diffModeToggle" /> Difference Mode
       </label>
       <button id="playPauseBtn" style="width: 100%; margin-top: 5px; cursor: pointer;">Play / Pause</button>
 
@@ -84,10 +88,10 @@
             <span><span id="val_az_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="azBias" data-action="decrease" data-step="0.001">-</button>
+            <button class="adjust-btn" data-target="azBias" data-action="decrease" data-step="0.01">-</button>
             <input type="range" id="azBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_az_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="azBias" data-action="increase" data-step="0.001">+</button>
+            <button class="adjust-btn" data-target="azBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="azBias" data-action="reset">R</button>
           </div>
         </div>
@@ -99,10 +103,10 @@
             <span><span id="val_el_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="elBias" data-action="decrease" data-step="0.001">-</button>
+            <button class="adjust-btn" data-target="elBias" data-action="decrease" data-step="0.01">-</button>
             <input type="range" id="elBias" min="-3" max="3" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_el_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="elBias" data-action="increase" data-step="0.001">+</button>
+            <button class="adjust-btn" data-target="elBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="elBias" data-action="reset">R</button>
           </div>
         </div>
@@ -114,31 +118,46 @@
             <span><span id="val_roll_bias">0</span>&deg;</span>
           </div>
           <div style="display: flex; align-items: center; gap: 5px;">
-            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.005">-</button>
+            <button class="adjust-btn" data-target="rollBias" data-action="decrease" data-step="0.05">-</button>
             <input type="range" id="rollBias" min="-10" max="10" step="0.0001" value="0" style="flex-grow: 1;"
               oninput="document.getElementById('val_roll_bias').textContent=this.value" />
-            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.005">+</button>
+            <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.05">+</button>
             <button class="adjust-btn" data-target="rollBias" data-action="reset">R</button>
+          </div>
+
+          <!-- FOV Bias -->
+          <div style="margin-bottom: 5px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span title="Sensor HFOV Bias (deg)">FOV Bias</span>
+              <span><span id="val_fov_bias">0</span>&deg;</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <button class="adjust-btn" data-target="fovBias" data-action="decrease" data-step="0.05">-</button>
+              <input type="range" id="fovBias" min="-10" max="10" step="0.01" value="0" style="flex-grow: 1;"
+                oninput="document.getElementById('val_fov_bias').textContent=this.value" />
+              <button class="adjust-btn" data-target="fovBias" data-action="increase" data-step="0.05">+</button>
+              <button class="adjust-btn" data-target="fovBias" data-action="reset">R</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="hudContent" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px;">
-    <div>FOV: <span id="val_fov">N/A</span></div>
-    <div>Platform Lat: <span id="val_platform_lat">N/A</span></div>
-    <div>Platform Lon: <span id="val_platform_lon">N/A</span></div>
-    <div>Platform Alt: <span id="val_platform_alt">N/A</span></div>
-    <div>Platform Heading: <span id="val_platform_heading">N/A</span></div>
-    <div>Platform Pitch: <span id="val_platform_pitch">N/A</span></div>
-    <div>Platform Roll: <span id="val_platform_roll">N/A</span></div>
-    <div>Sensor Azimuth: <span id="val_sensor_azimuth">N/A</span></div>
-    <div>Sensor Elevation: <span id="val_sensor_elevation">N/A</span></div>
-    <div>Sensor Roll: <span id="val_sensor_roll">N/A</span></div>
-    <div>Final Heading: <span id="val_final_heading">N/A</span></div>
-    <div>Final Pitch: <span id="val_final_pitch">N/A</span></div>
-    <div>Final Roll: <span id="val_final_roll">N/A</span></div>
+    <div id="hudContent" style="font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px;">
+      <div>FOV: <span id="val_fov">N/A</span></div>
+      <div>Platform Lat: <span id="val_platform_lat">N/A</span></div>
+      <div>Platform Lon: <span id="val_platform_lon">N/A</span></div>
+      <div>Platform Alt: <span id="val_platform_alt">N/A</span></div>
+      <div>Platform Heading: <span id="val_platform_heading">N/A</span></div>
+      <div>Platform Pitch: <span id="val_platform_pitch">N/A</span></div>
+      <div>Platform Roll: <span id="val_platform_roll">N/A</span></div>
+      <div>Sensor Azimuth: <span id="val_sensor_azimuth">N/A</span></div>
+      <div>Sensor Elevation: <span id="val_sensor_elevation">N/A</span></div>
+      <div>Sensor Roll: <span id="val_sensor_roll">N/A</span></div>
+      <div>Final Heading: <span id="val_final_heading">N/A</span></div>
+      <div>Final Pitch: <span id="val_final_pitch">N/A</span></div>
+      <div>Final Roll: <span id="val_final_roll">N/A</span></div>
+    </div>
   </div>
 </div>
 <div id="videoContainer"

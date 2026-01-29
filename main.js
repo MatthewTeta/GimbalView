@@ -64,6 +64,9 @@ const altOffsetInput = document.getElementById("altOffset");
 const azBiasInput = document.getElementById("azBias");
 const elBiasInput = document.getElementById("elBias");
 const rollBiasInput = document.getElementById("rollBias");
+const fovBiasInput = document.getElementById("fovBias");
+const diffModeToggle = document.getElementById("diffModeToggle");
+const toggleHudBtn = document.getElementById("toggleHudBtn");
 
 let lastKlvData = null; // Store last packet for paused updates
 
@@ -342,6 +345,7 @@ function updateCameraFromPacket(packet) {
     const azBias = parseFloat(azBiasInput ? azBiasInput.value : 0) || 0;
     const elBias = parseFloat(elBiasInput ? elBiasInput.value : 0) || 0;
     const rollBias = parseFloat(rollBiasInput ? rollBiasInput.value : 0) || 0;
+    const fovBias = parseFloat(fovBiasInput ? fovBiasInput.value : 0) || 0;
 
     // Apply Altitude Offset
     const adjustedAlt = (alt !== undefined) ? alt + altOffset : undefined;
@@ -484,7 +488,8 @@ function updateCameraFromPacket(packet) {
     if (hudEls.sensorRoll) hudEls.sensorRoll.textContent = sensorRelRoll?.toFixed(2) ?? "N/A";
 
     // FOV Handling
-    let fovToUse = fov;
+    let fov2 = fov + fovBias;
+    let fovToUse = fov2;
 
     // If Slave FOV is OFF, use Manual Slider
     if (!fovToggle || !fovToggle.checked) {
@@ -504,9 +509,13 @@ function updateCameraFromPacket(packet) {
         // Scale the video element so its visual FOV matches the Map's FOV.
         // Concept: If Map is zoomed IN (small FOV), Video should look BIGGER (Scale > 1).
         // Scale = tan(VideoFOV / 2) / tan(MapFOV / 2)
-        if (fov !== undefined && videoElement) {
-            const videoFovRad = toRadians(fov);
+        if (fov2 !== undefined && videoElement) {
+            const videoFovRad = toRadians(fov2);
             const mapFovRad = fovRad; // The one we just set
+            // console.log("fovToUse", fovToUse);
+            // console.log("fovRad", fovRad);
+            // console.log("videoFovRad", videoFovRad);
+            // console.log("mapFovRad", mapFovRad);
 
             // Avoid divide by zero
             if (mapFovRad > 0.0001) {
