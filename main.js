@@ -57,7 +57,8 @@ const useSensorAnglesToggle = document.getElementById("useSensorAngles");
 const combineAnglesToggle = document.getElementById("combineAnglesToggle");
 const useFrameCenterToggle = document.getElementById("useFrameCenter");
 const dataDelayInput = document.getElementById("dataDelay");
-const avgWindowInput = document.getElementById("avgWindow");
+const platWindowInput = document.getElementById("platWindow");
+const sensWindowInput = document.getElementById("sensWindow");
 const manualFovInput = document.getElementById("manualFov");
 const videoOpacityInput = document.getElementById("videoOpacity");
 const playPauseBtn = document.getElementById("playPauseBtn");
@@ -254,24 +255,42 @@ scene.preRender.addEventListener(() => {
 
     if (bestIndex !== -1) {
         // Averaging
-        const windowSize = parseInt(avgWindowInput ? avgWindowInput.value : 1) || 1;
-        const halfWindow = Math.floor(windowSize / 2);
+        const platWindowSize = parseInt(platWindowInput ? platWindowInput.value : 1) || 1;
+        const sensWindowSize = parseInt(sensWindowInput ? sensWindowInput.value : 1) || 1;
 
-        // let start = Math.max(0, bestIndex - halfWindow);
-        // let end = Math.min(klvBuffer.length - 1, bestIndex + halfWindow);
-        let start = Math.max(0, bestIndex - windowSize);
-        let end = Math.min(klvBuffer.length - 1, bestIndex);
-
-        // Filter valid packets in range to avoid undefined values infecting average
-        const packetsToAvg = [];
-        for (let i = start; i <= end; i++) {
-            packetsToAvg.push(klvBuffer[i]);
+        // --- Platform Average --- (lat, lon, alt, heading, pitch, roll)
+        let platStart = Math.max(0, bestIndex - platWindowSize);
+        let platEnd = Math.min(klvBuffer.length - 1, bestIndex);
+        const platPackets = [];
+        for (let i = platStart; i <= platEnd; i++) {
+            platPackets.push(klvBuffer[i]);
         }
+        // Fallback to current packet if list empty (shouldn't happen given bestIndex valid)
+        const avgPlat = (platPackets.length > 0) ? computeAveragePacket(platPackets) : klvBuffer[bestIndex];
 
-        if (packetsToAvg.length > 0) {
-            const avgPacket = computeAveragePacket(packetsToAvg);
-            updateCameraFromPacket(avgPacket);
+        // --- Sensor Average --- (az, el, roll, centerLat, centerLon, centerAlt)
+        let sensStart = Math.max(0, bestIndex - sensWindowSize);
+        let sensEnd = Math.min(klvBuffer.length - 1, bestIndex);
+        const sensPackets = [];
+        for (let i = sensStart; i <= sensEnd; i++) {
+            sensPackets.push(klvBuffer[i]);
         }
+        const avgSens = (sensPackets.length > 0) ? computeAveragePacket(sensPackets) : klvBuffer[bestIndex];
+
+        // Merge Packets
+        const mergedPacket = {
+            ...avgPlat, // Start with Platform values
+            // Overwrite with Sensor values
+            sensorRelAzimuth: avgSens.sensorRelAzimuth,
+            sensorRelElevation: avgSens.sensorRelElevation,
+            sensorRelRoll: avgSens.sensorRelRoll,
+            frameCenterLat: avgSens.frameCenterLat,
+            frameCenterLon: avgSens.frameCenterLon,
+            frameCenterAlt: avgSens.frameCenterAlt,
+            fov: avgSens.fov // Group FOV with sensor
+        };
+
+        updateCameraFromPacket(mergedPacket);
     }
 });
 

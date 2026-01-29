@@ -162,9 +162,13 @@
           </div>
         </div>
 
-        <div class="row" title="Number of samples to average">
-          <span>Avg Window:</span>
-          <input type="number" id="avgWindow" min="1" max="60" value="1" />
+        <div class="row" title="Number of samples to average for Platform">
+          <span>Plat Window:</span>
+          <input type="number" id="platWindow" min="1" max="60" value="1" />
+        </div>
+        <div class="row" title="Number of samples to average for Sensor">
+          <span>Sens Window:</span>
+          <input type="number" id="sensWindow" min="1" max="60" value="1" />
         </div>
 
         <div title="Manual FOV when Slave FOV is off.">
@@ -254,6 +258,15 @@
               oninput="val_roll_bias.textContent=this.value" />
             <button class="adjust-btn" data-target="rollBias" data-action="increase" data-step="0.01">+</button>
             <button class="adjust-btn" data-target="rollBias" data-action="reset">R</button>
+          </div>
+
+          <div class="row"><span>FOV Bias</span> <span><span id="val_fov_bias">0</span>&deg;</span></div>
+          <div class="row">
+            <button class="adjust-btn" data-target="fovBias" data-action="decrease" data-step="0.01">-</button>
+            <input type="range" id="fovBias" min="-3" max="3" step="0.0001" value="0"
+              oninput="val_fov_bias.textContent=this.value" />
+            <button class="adjust-btn" data-target="fovBias" data-action="increase" data-step="0.01">+</button>
+            <button class="adjust-btn" data-target="fovBias" data-action="reset">R</button>
           </div>
         </div>
       </div>
