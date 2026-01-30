@@ -242,70 +242,128 @@ scene.preRender.addEventListener(() => {
     // Target PTS
     const targetPts = firstPts + ((currentVideoTime - delaySec) * 1000000);
 
-    // Find the best packet INDEX
-    let bestIndex = -1;
-    let minDiff = Infinity;
+    // Binary search for the interval
+    // We want index i such that klvBuffer[i].pts <= targetPts < klvBuffer[i+1].pts
+    let lowerIndex = -1;
+    let upperIndex = -1;
+    let factor = 0;
 
-    let startIndex = lastPacketIndex;
-
-    if (currentVideoTime < (klvBuffer[lastPacketIndex]?.pts || 0) / 1000000) {
-        startIndex = 0;
+    // Optimization: start search from lastPacketIndex
+    // If targetPts is behind lastPacketIndex (rewind), reset search
+    let startIndex = 0;
+    if (lastPacketIndex < klvBuffer.length && klvBuffer[lastPacketIndex].pts <= targetPts) {
+        startIndex = lastPacketIndex;
     }
 
-    // Simple linear scan
-    for (let i = startIndex; i < klvBuffer.length; i++) {
-        const diff = Math.abs(klvBuffer[i].pts - targetPts);
-        if (diff > minDiff && minDiff < 100000) { // 100ms tolerance
+    // Linear scan is fine for small buffers, or if we are close to last index.
+    // Given the stream nature, we are almost always just 1 or 2 frames ahead.
+    for (let i = startIndex; i < klvBuffer.length - 1; i++) {
+        const t1 = klvBuffer[i].pts;
+        const t2 = klvBuffer[i + 1].pts;
+        if (targetPts >= t1 && targetPts <= t2) {
+            lowerIndex = i;
+            upperIndex = i + 1;
+            const denom = t2 - t1;
+            factor = (denom > 0) ? (targetPts - t1) / denom : 0;
             break;
         }
-        if (diff < minDiff) {
-            minDiff = diff;
-            bestIndex = i;
+    }
+
+    // Edge case: End of buffer
+    if (lowerIndex === -1) {
+        if (klvBuffer.length > 0 && targetPts >= klvBuffer[klvBuffer.length - 1].pts) {
+            lowerIndex = klvBuffer.length - 1;
+            upperIndex = klvBuffer.length - 1;
+            factor = 0;
+        } else if (klvBuffer.length > 0 && targetPts < klvBuffer[0].pts) {
+            // Before start
+            lowerIndex = 0;
+            upperIndex = 0;
+            factor = 0;
         }
     }
 
-    if (bestIndex !== -1) {
-        lastPacketIndex = bestIndex;
+    if (lowerIndex !== -1) {
+        lastPacketIndex = lowerIndex;
 
-        // Averaging
-        const platWindowSize = parseInt(platWindowInput ? platWindowInput.value : 1) || 1;
-        const sensWindowSize = parseInt(sensWindowInput ? sensWindowInput.value : 1) || 1;
+        const packet1 = getMergedPacketAtIndex(lowerIndex);
 
-        // --- Platform Average --- (lat, lon, alt, heading, pitch, roll)
-        let platStart = Math.max(0, bestIndex - platWindowSize);
-        let platEnd = Math.min(klvBuffer.length - 1, bestIndex);
-        const platPackets = [];
-        for (let i = platStart; i <= platEnd; i++) {
-            platPackets.push(klvBuffer[i]);
+        if (lowerIndex === upperIndex || factor <= 0.001) {
+            updateCameraFromPacket(packet1);
+        } else {
+            const packet2 = getMergedPacketAtIndex(upperIndex);
+            const interpPacket = interpolatePackets(packet1, packet2, factor);
+            updateCameraFromPacket(interpPacket);
         }
-        // Fallback to current packet if list empty (shouldn't happen given bestIndex valid)
-        const avgPlat = (platPackets.length > 0) ? computeAveragePacket(platPackets) : klvBuffer[bestIndex];
-
-        // --- Sensor Average --- (az, el, roll, centerLat, centerLon, centerAlt)
-        let sensStart = Math.max(0, bestIndex - sensWindowSize);
-        let sensEnd = Math.min(klvBuffer.length - 1, bestIndex);
-        const sensPackets = [];
-        for (let i = sensStart; i <= sensEnd; i++) {
-            sensPackets.push(klvBuffer[i]);
-        }
-        const avgSens = (sensPackets.length > 0) ? computeAveragePacket(sensPackets) : klvBuffer[bestIndex];
-
-        // Merge Packets
-        const mergedPacket = {
-            ...avgPlat, // Start with Platform values
-            // Overwrite with Sensor values
-            sensorRelAzimuth: avgSens.sensorRelAzimuth,
-            sensorRelElevation: avgSens.sensorRelElevation,
-            sensorRelRoll: avgSens.sensorRelRoll,
-            frameCenterLat: avgSens.frameCenterLat,
-            frameCenterLon: avgSens.frameCenterLon,
-            frameCenterAlt: avgSens.frameCenterAlt,
-            fov: avgSens.fov // Group FOV with sensor
-        };
-
-        updateCameraFromPacket(mergedPacket);
     }
 });
+
+function getMergedPacketAtIndex(index) {
+    if (index < 0 || index >= klvBuffer.length) return null;
+
+    // Averaging
+    const platWindowSize = parseInt(platWindowInput ? platWindowInput.value : 1) || 1;
+    const sensWindowSize = parseInt(sensWindowInput ? sensWindowInput.value : 1) || 1;
+
+    // --- Platform Average --- (lat, lon, alt, heading, pitch, roll)
+    let platStart = Math.max(0, index - platWindowSize);
+    let platEnd = Math.min(klvBuffer.length - 1, index);
+    const platPackets = [];
+    for (let i = platStart; i <= platEnd; i++) {
+        platPackets.push(klvBuffer[i]);
+    }
+    const avgPlat = (platPackets.length > 0) ? computeAveragePacket(platPackets) : klvBuffer[index];
+
+    // --- Sensor Average --- (az, el, roll, centerLat, centerLon, centerAlt)
+    let sensStart = Math.max(0, index - sensWindowSize);
+    let sensEnd = Math.min(klvBuffer.length - 1, index);
+    const sensPackets = [];
+    for (let i = sensStart; i <= sensEnd; i++) {
+        sensPackets.push(klvBuffer[i]);
+    }
+    const avgSens = (sensPackets.length > 0) ? computeAveragePacket(sensPackets) : klvBuffer[index];
+
+    // Merge Packets
+    return {
+        ...avgPlat,
+        sensorRelAzimuth: avgSens.sensorRelAzimuth,
+        sensorRelElevation: avgSens.sensorRelElevation,
+        sensorRelRoll: avgSens.sensorRelRoll,
+        frameCenterLat: avgSens.frameCenterLat,
+        frameCenterLon: avgSens.frameCenterLon,
+        frameCenterAlt: avgSens.frameCenterAlt,
+        fov: avgSens.fov
+    };
+}
+
+function interpolatePackets(p1, p2, t) {
+    const lerp = (a, b, f) => (a === undefined || b === undefined) ? (a || b) : a + (b - a) * f;
+    const lerpAngle = (a, b, f) => {
+        if (a === undefined || b === undefined) return (a || b);
+        let diff = b - a;
+        // Wrap diff to -180 to 180 (or appropriate range)
+        while (diff < -180) diff += 360;
+        while (diff > 180) diff -= 360;
+        return a + diff * t;
+    };
+
+    return {
+        pts: lerp(p1.pts, p2.pts, t),
+        lat: lerp(p1.lat, p2.lat, t),
+        lon: lerp(p1.lon, p2.lon, t),
+        alt: lerp(p1.alt, p2.alt, t),
+        heading: lerpAngle(p1.heading, p2.heading, t), // Circular interpolation
+        pitch: lerp(p1.pitch, p2.pitch, t),
+        roll: lerp(p1.roll, p2.roll, t),
+        fov: lerp(p1.fov, p2.fov, t),
+        sensorRelAzimuth: lerp(p1.sensorRelAzimuth, p2.sensorRelAzimuth, t),
+        sensorRelElevation: lerp(p1.sensorRelElevation, p2.sensorRelElevation, t),
+        sensorRelRoll: lerp(p1.sensorRelRoll, p2.sensorRelRoll, t),
+        frameCenterLat: lerp(p1.frameCenterLat, p2.frameCenterLat, t),
+        frameCenterLon: lerp(p1.frameCenterLon, p2.frameCenterLon, t),
+        frameCenterAlt: lerp(p1.frameCenterAlt, p2.frameCenterAlt, t)
+    };
+}
 
 function computeAveragePacket(packets) {
     let sumLat = 0, sumLon = 0, sumAlt = 0;
